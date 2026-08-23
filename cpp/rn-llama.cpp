@@ -464,6 +464,13 @@ bool llama_rn_context::loadModel(common_params &params_)
     draft_model.reset();
     params = params_;
 
+    // common_init_from_params() now creates its threadpools directly, so CPU
+    // defaults must be resolved just as the upstream CLI parser resolves them.
+    // In particular, n_threads_batch=-1 means "inherit n_threads"; passing -1
+    // to ggml_threadpool_new underflows its worker count.
+    postprocess_cpu_params(params.cpuparams);
+    postprocess_cpu_params(params.cpuparams_batch, &params.cpuparams);
+
     // Ensure n_parallel is set to a reasonable default for parallel decoding support
     // This sets n_seq_max in the context, which cannot be changed later
     if (params.n_parallel < 1) {
@@ -593,10 +600,10 @@ common_chat_params llama_rn_context::getFormattedChatWithJinja(
 ) const {
     common_chat_templates_inputs inputs;
     inputs.use_jinja = true;
-    inputs.messages = common_chat_msgs_parse_oaicompat(json::parse(messages));
+    inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages));
     auto useTools = !tools.empty();
     if (useTools) {
-        inputs.tools = common_chat_tools_parse_oaicompat(json::parse(tools));
+        inputs.tools = common_chat_tools_parse_oaicompat(common_json::parse(tools));
     }
     inputs.parallel_tool_calls = parallel_tool_calls;
     if (!tool_choice.empty()) {
@@ -638,7 +645,7 @@ std::string llama_rn_context::getFormattedChat(
   const std::string &chat_template
 ) const {
     common_chat_templates_inputs inputs;
-    inputs.messages = common_chat_msgs_parse_oaicompat(json::parse(messages));
+    inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages));
     inputs.use_jinja = false;
 
     // If chat_template is provided, create new one and use it (probably slow)

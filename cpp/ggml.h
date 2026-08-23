@@ -1981,6 +1981,14 @@ extern "C" {
             float                 beta_fast,
             float                 beta_slow);
 
+    // set the offset dims for RoPE
+    // a must be LM_GGML_OP_ROPE or LM_GGML_OP_ROPE_BACK
+    // vision RoPE is not supported
+    // example: (marking: x = rotated, 0 = unrotated)
+    //     n_embd = 10, n_dims = 4, offset = 2 --> [00xxxx0000]
+    LM_GGML_API struct lm_ggml_tensor * lm_ggml_rope_set_offset(
+            struct lm_ggml_tensor  * a,
+            int                   n_offs);
 
     // clamp
     // in-place, returns view(a)
@@ -2459,7 +2467,8 @@ extern "C" {
             struct lm_ggml_tensor  * A,
             struct lm_ggml_tensor  * B,
             struct lm_ggml_tensor  * C,
-            struct lm_ggml_tensor  * ids);
+            struct lm_ggml_tensor  * ids,
+            int64_t               K);
 
     // partition into non-overlapping windows with padding if needed
     // example:

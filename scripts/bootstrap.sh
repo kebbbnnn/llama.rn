@@ -195,6 +195,7 @@ cp ./$LLAMA_DIR/ggml/src/ggml-backend-meta.cpp ./cpp/ggml-backend-meta.cpp
 cp ./$LLAMA_DIR/ggml/src/ggml-backend-dl.h ./cpp/ggml-backend-dl.h
 cp ./$LLAMA_DIR/ggml/src/ggml-backend-dl.cpp ./cpp/ggml-backend-dl.cpp
 cp ./$LLAMA_DIR/ggml/src/ggml-common.h ./cpp/ggml-common.h
+cp ./$LLAMA_DIR/ggml/src/ggml-feats.h ./cpp/ggml-feats.h
 cp ./$LLAMA_DIR/ggml/src/ggml-opt.cpp ./cpp/ggml-opt.cpp
 cp ./$LLAMA_DIR/ggml/src/ggml-quants.h ./cpp/ggml-quants.h
 cp ./$LLAMA_DIR/ggml/src/ggml-quants.c ./cpp/ggml-quants.c
@@ -233,6 +234,8 @@ cp ./$LLAMA_DIR/src/llama-kv-cache.h ./cpp/llama-kv-cache.h
 cp ./$LLAMA_DIR/src/llama-kv-cache.cpp ./cpp/llama-kv-cache.cpp
 cp ./$LLAMA_DIR/src/llama-kv-cache-dsa.h ./cpp/llama-kv-cache-dsa.h
 cp ./$LLAMA_DIR/src/llama-kv-cache-dsa.cpp ./cpp/llama-kv-cache-dsa.cpp
+cp ./$LLAMA_DIR/src/llama-kv-cache-dsa-iswa.h ./cpp/llama-kv-cache-dsa-iswa.h
+cp ./$LLAMA_DIR/src/llama-kv-cache-dsa-iswa.cpp ./cpp/llama-kv-cache-dsa-iswa.cpp
 cp ./$LLAMA_DIR/src/llama-kv-cache-msa.h ./cpp/llama-kv-cache-msa.h
 cp ./$LLAMA_DIR/src/llama-kv-cache-msa.cpp ./cpp/llama-kv-cache-msa.cpp
 cp ./$LLAMA_DIR/src/llama-kv-cache-dsv4.h ./cpp/llama-kv-cache-dsv4.h
@@ -295,6 +298,8 @@ cp ./$LLAMA_DIR/common/ngram-mod.h ./cpp/common/ngram-mod.h
 cp ./$LLAMA_DIR/common/ngram-mod.cpp ./cpp/common/ngram-mod.cpp
 cp ./$LLAMA_DIR/common/json-schema-to-grammar.h ./cpp/common/json-schema-to-grammar.h
 cp ./$LLAMA_DIR/common/json-schema-to-grammar.cpp ./cpp/common/json-schema-to-grammar.cpp
+cp ./$LLAMA_DIR/common/json.h ./cpp/common/json.h
+cp ./$LLAMA_DIR/common/json.cpp ./cpp/common/json.cpp
 rm -f ./cpp/common/json-partial.h ./cpp/common/json-partial.cpp
 rm -f ./cpp/common/regex-partial.h ./cpp/common/regex-partial.cpp
 cp ./$LLAMA_DIR/common/chat.h ./cpp/common/chat.h
@@ -324,6 +329,7 @@ mkdir -p ./cpp/tools/mtmd
 cp -r ./$LLAMA_DIR/tools/mtmd/models ./cpp/tools/mtmd/models
 cp -r ./$LLAMA_DIR/tools/mtmd/debug ./cpp/tools/mtmd/debug
 cp ./$LLAMA_DIR/tools/mtmd/mtmd.h ./cpp/tools/mtmd/mtmd.h
+cp ./$LLAMA_DIR/tools/mtmd/mtmd-internal.h ./cpp/tools/mtmd/mtmd-internal.h
 cp ./$LLAMA_DIR/tools/mtmd/mtmd.cpp ./cpp/tools/mtmd/mtmd.cpp
 cp ./$LLAMA_DIR/tools/mtmd/clip.h ./cpp/tools/mtmd/clip.h
 cp ./$LLAMA_DIR/tools/mtmd/clip.cpp ./cpp/tools/mtmd/clip.cpp
@@ -364,6 +370,12 @@ fi
 
 rm -rf ./cpp/nlohmann
 cp -r ./$LLAMA_DIR/vendor/nlohmann ./cpp/nlohmann
+# mtmd hashes media inputs with the upstream SHA-256 helper. Copy only the
+# implementation it uses rather than the vendor package's unused hash engines.
+rm -rf ./cpp/hash
+mkdir -p ./cpp/hash
+cp ./$LLAMA_DIR/vendor/hash/hash.cpp ./$LLAMA_DIR/vendor/hash/hash.h ./cpp/hash/
+cp -r ./$LLAMA_DIR/vendor/hash/sha256 ./$LLAMA_DIR/vendor/hash/rotate-bits ./cpp/hash/
 rm -rf ./cpp/tools/mtmd/miniaudio
 rm -rf ./cpp/tools/mtmd/stb
 cp -r ./$LLAMA_DIR/vendor/miniaudio ./cpp/tools/mtmd/miniaudio
@@ -567,6 +579,22 @@ echo "ggml-metal-embed.s generated ($(wc -l < "$EMBED_ASM") lines)"
 echo "Replacement completed successfully!"
 
 cd example && npm install && cd ..
+
+# llama.cpp normally receives LLAMA_VERSION from its own CMake target. Since
+# llama.rn compiles the copied sources directly, generate a fallback header from
+# upstream's version components for builds that do not define it themselves.
+LLAMA_VERSION_MAJOR=$(sed -n 's/^set(LLAMA_VERSION_MAJOR \([0-9][0-9]*\))$/\1/p' "$LLAMA_DIR/CMakeLists.txt")
+LLAMA_VERSION_MINOR=$(sed -n 's/^set(LLAMA_VERSION_MINOR \([0-9][0-9]*\))$/\1/p' "$LLAMA_DIR/CMakeLists.txt")
+LLAMA_VERSION_PATCH=$(sed -n 's/^set(LLAMA_VERSION_PATCH \([0-9][0-9]*\))$/\1/p' "$LLAMA_DIR/CMakeLists.txt")
+if [ -z "$LLAMA_VERSION_MAJOR" ] || [ -z "$LLAMA_VERSION_MINOR" ] || [ -z "$LLAMA_VERSION_PATCH" ]; then
+  echo "Failed to determine llama.cpp version from $LLAMA_DIR/CMakeLists.txt"
+  exit 1
+fi
+cat > ./cpp/rn-llama-version.h <<EOF
+#pragma once
+
+#define LLAMA_VERSION "$LLAMA_VERSION_MAJOR.$LLAMA_VERSION_MINOR.$LLAMA_VERSION_PATCH-dev"
+EOF
 
 # Apply patch
 # List ./scripts/patches/ and patch it
