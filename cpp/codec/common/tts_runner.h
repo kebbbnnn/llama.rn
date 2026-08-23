@@ -26,7 +26,132 @@
 #include <string>
 #include <vector>
 
+// llama_logit_bias / llama_token — replicated inline so this header is
+// includable by TUs that do NOT have llama.h on their include path (e.g.
+// tts_runner_flow.cpp, which lives in the always-built codec_common library).
+// Layouts are identical to llama.h's typedefs.  Gated on !LLAMA_H so that
+// TUs that already included llama.h don't see a redeclaration.
+#ifndef LLAMA_H
+typedef struct llama_logit_bias {
+    int32_t token;
+    float   bias;
+} llama_logit_bias;
+typedef int32_t llama_token;
+#endif  // !LLAMA_H
+
+// Forward-declare llama_vocab so the detection helpers below can accept a
+// pointer without requiring callers to include llama.h.
+struct llama_vocab;
+
 namespace codec_common {
+
+// ─────────────────────────────────────────────────────────────────────
+// Backbone-sampler constraint.  Exactly one field is populated for a
+// constrained model; both empty = unconstrained.
+//   grammar    — GBNF for structured models (OuteTTS / MOSS-TTSD)
+//   logit_bias — id-level mask for flat direct-audio Type A models
+// ─────────────────────────────────────────────────────────────────────
+struct tts_constraint {
+    std::string                   grammar;
+    std::vector<llama_logit_bias> logit_bias;
+};
+
+// Mask every token OUTSIDE [offset, offset+count) ∪ {eos_id} to -INFINITY.
+// eos_id < 0 = no sentinel.  offset < 0 → returns {} (Type A disabled).
+std::vector<llama_logit_bias> build_flat_audio_mask(int32_t offset, int32_t count,
+                                                    int32_t eos_id, int32_t n_vocab);
+
+// ── OuteTTS V3 prompt builder ─────────────────────────────────────────────────
+//
+// Speaker profile: per-word text, acoustic features, and c1/c2 code frames.
+// Populated by load_outetts_speaker from a JSON file (outetts 0.4.4 schema).
+
+struct OutettsSpeakerWord {
+    std::string          word;                // raw word text
+    float                duration   = 0.0f;  // duration in seconds
+    std::vector<int32_t> c1;                  // DAC codebook-0 indices, 0..1023
+    std::vector<int32_t> c2;                  // DAC codebook-1 indices, 0..1023
+    int32_t energy             = 0;           // quantized 0..100
+    int32_t spectral_centroid  = 0;
+    int32_t pitch              = 0;
+};
+
+struct OutettsSpeaker {
+    std::string                      text;    // reference text for this speaker
+    std::vector<OutettsSpeakerWord>  words;
+};
+
+// Parse an OuteTTS V3 speaker JSON file (outetts 0.4.4 schema) into *out.
+// Returns true on success, false on parse failure (prints to stderr).
+bool load_outetts_speaker(const std::string & json_path, OutettsSpeaker * out);
+
+// Assemble the exact OuteTTS V3 prefill token sequence (outetts10-facts §Step 1):
+//
+//   <|im_start|>\n
+//   <|text_start|>SPEAKER_TEXT. TARGET_TEXT<|text_end|>\n
+//   <|audio_start|>\n
+//   <speaker word blocks>\n
+//   <|word_start|>
+//
+// Each speaker word block is one line:
+//   <|word_start|>WORD<|features|><|t_D.DD|><|energy_N|><|spectral_centroid_N|><|pitch_N|>
+//   <|code|><|c1_X|><|c2_X|>...<|word_end|>
+//
+// Code tokens are appended as raw llama_token ids (c1_base+code, c2_base+code).
+// Valid code range: 0..1023.  Returns empty on any error (null vocab, empty text,
+// out-of-range code).
+std::vector<llama_token> build_outetts_v3_prompt(const llama_vocab      * vocab,
+                                                 const std::string      & text,
+                                                 const OutettsSpeaker   & speaker);
+
+// ── NeuTTS detection ─────────────────────────────────────────────────────────
+//
+// Identifies a NeuTTS backbone from its vocab signature tokens.
+// Returns true when the vocab contains the three marker pieces that together
+// uniquely identify a NeuTTS backbone (nano or air).
+//
+// Both helpers are non-static so they can be called from the test binary
+// (separate TU).  The llama_vocab* pointer type is forward-declared above;
+// callers that also include llama.h see the same concrete type.
+
+bool detect_neutts(const llama_vocab * vocab);
+
+// Derives the audio-token range from the NeuTTS backbone vocab.
+// On success: *offset = id of <|speech_0|>, *count = contiguous <|speech_N|>
+// block length, *eos_id = id of <|SPEECH_GENERATION_END|>.  Returns false if
+// any of the marker tokens are absent.
+bool neutts_audio_token_range(const llama_vocab * vocab,
+                              int32_t * offset,
+                              int32_t * count,
+                              int32_t * eos_id);
+
+// Derive the multi-codebook audio-token ranges from an OuteTTS V3 backbone
+// vocab.  Resolves from vocab pieces (robust across the 0.6B/1B backbones):
+//   offsets[0] = <|c1_0|>, offsets[1] = <|c2_0|>, counts = {1024, 1024},
+//   *sentinel = <|code|> (per-frame reset), *eos = <|audio_end|>.
+// Returns false if any marker token is absent.
+bool outetts_audio_token_ranges(const llama_vocab * vocab,
+                                int32_t offsets[2],
+                                int32_t counts[2],
+                                int32_t * sentinel,
+                                int32_t * eos);
+
+// Build the full NeuTTS ICL prefill token sequence.
+//
+// Assembles the verbatim prompt string (phonemes mode):
+//   "user: Convert the text to speech:<|TEXT_PROMPT_START|>{ref_text_phonemes} {input_phonemes}"
+//   "<|TEXT_PROMPT_END|>\nassistant:<|SPEECH_GENERATION_START|>"
+// tokenized with parse_special=true so the <|...|> markers resolve to their
+// special ids, then appends one vocab id (offset + c) for each code in
+// ref_codes.
+//
+// Guards: returns an empty vector if vocab is null, if llama_tokenize fails,
+// or if any ref_code is out of [0, count).
+std::vector<llama_token> build_neutts_prompt(
+    const llama_vocab          * vocab,
+    const std::string          & ref_text_phonemes,
+    const std::string          & input_phonemes,
+    const std::vector<int32_t> & ref_codes);
 
 // ─────────────────────────────────────────────────────────────────────
 // Params — everything the reference loop needs.  Unset optionals fall
@@ -38,6 +163,7 @@ struct tts_runner_params {
                                      // self-contained models (Pocket FlowLM)
     std::string text;                // synthesis target (required)
     std::string ref_audio_path;      // optional WAV for voice conditioning
+    std::string ref_text;            // optional transcript of ref_audio (NeuTTS phonemization)
 
     int32_t  n_threads = 0;
     bool     use_gpu   = false;

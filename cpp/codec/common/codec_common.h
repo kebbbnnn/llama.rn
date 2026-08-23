@@ -200,11 +200,59 @@ void audio_lm_set_audio_token_range(
         int32_t            count,
         int32_t            eos_id);
 
+// Multi-codebook Type A range config (OuteTTS 1.0, n_q >= 1).
+//
+// Each codebook q has its own contiguous token range:
+//   tok ∈ [offsets[q], offsets[q] + counts[q])  → code = tok - offsets[q]
+//
+// frame_sentinel_id: token emitted before each frame's code sequence
+//   (OuteTTS <|code|>); resets the per-frame cursor, returns PASSTHROUGH.
+//   Pass -1 when the model has no sentinel.
+// eos_id: end-of-audio sentinel; returns OBSERVE_STOP.
+//
+// This replaces the per-sequence range state on the context.  The
+// existing single-cb `audio_lm_set_audio_token_range` remains and is
+// equivalent to calling this with n_q=1 and frame_sentinel_id=-1.
+//
+// Codes are accumulated in frame-major (T, n_q) layout:
+//   codes[t * n_q + q]  (matches codec_token_buffer convention).
+void audio_lm_set_audio_token_ranges(
+        audio_lm_context * ctx,
+        const int32_t *    offsets,
+        const int32_t *    counts,
+        int32_t            n_q,
+        int32_t            frame_sentinel_id,
+        int32_t            eos_id);
+
 void audio_lm_get_audio_token_range(
         const audio_lm_context * ctx,
         int32_t * out_offset,
         int32_t * out_count,
         int32_t * out_eos_id);
+
+// Number of complete audio frames accumulated so far (valid during or
+// after observe_token / observe_codes calls; incremented when the last
+// codebook of each frame is filled).
+int32_t audio_lm_codes_n_frames(const audio_lm_context * ctx);
+
+// ─────────────────────────────────────────────────────────────────────
+// Bare-context allocation (unit-test / model-less use)
+//
+// Allocates a zeroed audio_lm_context without loading any model.
+// Only the accumulator and Type A range state are functional; all
+// model-dependent paths (observe_codes, decode_audio, etc.) will fail
+// gracefully.  Free with audio_lm_free_bare (NOT audio_lm_free).
+// ─────────────────────────────────────────────────────────────────────
+audio_lm_context * audio_lm_alloc_bare();
+void               audio_lm_free_bare(audio_lm_context * ctx);
+
+// Debug accessor: returns a pointer to the raw accumulated codes vector
+// and writes the number of codebooks + frames into *out_n_q / *out_n_frames.
+// Valid until the next mutating call (observe_token, reset, free).
+// Returns nullptr when ctx is null or no codes have been accumulated.
+const int32_t * audio_lm_debug_codes(const audio_lm_context * ctx,
+                                      int32_t * out_n_q,
+                                      int32_t * out_n_frames);
 
 // ─────────────────────────────────────────────────────────────────────
 // codec_lm end-of-audio metadata (codebook-AR kinds).
@@ -387,6 +435,7 @@ struct audio_lm_prompt_info {
         KIND_RESIDUAL_DEPTH_AR,   // Type C — CSM, Qwen3-TTS, MOSS-TTS-Realtime
         KIND_PARALLEL_HEADS_DELAY,// Type D — MOSS-TTSD
         KIND_CONTINUOUS_CFM,      // BlueMagpie / VoxCPM
+        KIND_TOKEN_SINGLE_CB,     // Type A — OuteTTS / single-codebook token LMs
     } model_kind = KIND_UNKNOWN;
 
     std::string host_arch;        // "llama" / "qwen3" / "barbet"
@@ -467,6 +516,14 @@ struct audio_lm_prompt_info {
     // arbitrary text tokens (babble) mid-utterance.  Both -1 when absent.
     int32_t cb0_speech_range_start = -1;  // codec.lm.cb0_speech_offset
     int32_t cb0_speech_range_end   = -1;  // codec.lm.cb0_speech_range_end (exclusive)
+
+    // Type A (token-based single-cb) audio-token range, mirrored from the
+    // codec_lm context so backbone-side code (tts_runner) can build a flat
+    // logit-bias mask without reaching into the private context.
+    // audio_tok_offset < 0 → not a Type A model.
+    int32_t audio_tok_offset = -1;
+    int32_t audio_tok_count  = 0;
+    int32_t audio_tok_eos    = -1;
 };
 
 // Fill `*out` from the loaded model's metadata.  Returns false + sets
@@ -495,6 +552,18 @@ bool audio_lm_get_prompt_info(const audio_lm_context * ctx,
 // `text` is unused today (MOSS-TTSD's grammar is text-independent) but is
 // threaded through for future prompt-dependent grammars (OuteTTS-style
 // word-sequence constraints).
+
+// OuteTTS interface version — selects the grammar template family.
+enum class outetts_version { V2, V3 };
+
+// Build the prompt-dependent GBNF for an OuteTTS backbone. Pure string:
+// splits `text` on ASCII whitespace into words, converts each to a GBNF
+// terminal (ASCII → quoted literal with " and \ escaped; non-ASCII →
+// [unique-codepoints]+), and substitutes them into the V2 or V3 template.
+// No llama dependency — callable from hook hosts (rn-tts) and tests without
+// a backbone. Faithful port of BricksDisplay/OuteTTS-Speaker-Creator app.py.
+std::string outetts_build_grammar(outetts_version v, const std::string & text);
+
 std::string tts_auto_grammar(const audio_lm_prompt_info & pi,
                              const std::string & text);
 
