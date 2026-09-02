@@ -6,10 +6,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (MSVC)
   # O3 is a clang-only define; MSVC's Release config already selects /O2.
+  # _USE_MATH_DEFINES makes MSVC's <cmath> define M_PI & friends (used by
+  # codec sources), which it otherwise leaves undefined.
   add_definitions(
     /DNDEBUG
     /DLM_GGML_USE_CPU
     /DLM_GGML_USE_CPU_REPACK
+    /D_USE_MATH_DEFINES
   )
 else ()
   add_definitions(
