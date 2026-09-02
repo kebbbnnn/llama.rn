@@ -152,6 +152,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Put cl.exe + the MSVC toolchain on PATH (the VS generator can't find an
+      # IDE install on the runner; Ninja also needs cl.exe visible).
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja -y --no-progress
+
       - name: Build Windows core (prebuilt lib)
         run: powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
 

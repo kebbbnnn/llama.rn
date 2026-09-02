@@ -96,6 +96,13 @@ jobs:
 
       # No ./.github/actions/setup: it runs `npm run bootstrap` (pod-install)
       # which is macOS-only. Committed cpp/ sources are all this build needs.
+      # cl.exe + Ninja are needed for the CMake build (see ci.yml).
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja -y --no-progress
+
       - name: Build Windows core
         run: powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
 

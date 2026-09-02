@@ -14,6 +14,7 @@
 param(
   [string]$Arch = "x64",
   [string]$BuildType = "Release",
+  [string]$Generator = "Ninja",
   [string]$CmakePath = "cmake"
 )
 
@@ -22,8 +23,9 @@ $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $arch = $Arch.ToLower()
 $buildRoot = Join-Path $rootDir ".build-windows-$arch"
 
-# Map RNW/Visual Studio arch names to CMake generators.
-$generator = "Visual Studio 17 2022"
+# Map RNW/Visual Studio arch names to CMake `-A` arguments. The Ninja generator
+# (default) ignores `-A` and uses whatever compiler is on PATH — pair it with
+# the `ilammy/msvc-dev-cmd` action (or a VS dev prompt) so cl.exe is visible.
 $cmakeArch = switch ($arch) {
   "x64"   { "x64" }
   "arm64" { "ARM64" }
@@ -32,7 +34,11 @@ $cmakeArch = switch ($arch) {
 }
 
 # 1. Configure
-& $CmakePath -S (Join-Path $rootDir "windows") -B $buildRoot -G $generator -A $cmakeArch -DCMAKE_BUILD_TYPE=$BuildType $args
+$genArgs = @("-S", (Join-Path $rootDir "windows"), "-B", $buildRoot, "-G", $Generator, "-DCMAKE_BUILD_TYPE=$BuildType")
+if ($Generator -ne "Ninja") {
+  $genArgs += @("-A", $cmakeArch)
+}
+& $CmakePath @genArgs $args
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 
 # 2. Build
