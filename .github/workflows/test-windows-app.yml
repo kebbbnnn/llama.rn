@@ -47,9 +47,11 @@ jobs:
       # Generate the RNW windows/ project for the app + autolink llama.rn.
       # react-native-windows is pinned in test-windows-app/package.json so the
       # init command targets the same version as the authored module (0.82).
+      # Note: for RNW > 0.75 the command is `react-native init-windows` (the
+      # old `react-native-windows-init` CLI only supports RNW <= 0.75).
       - name: Initialize Windows project
         run: |
-          npx react-native-windows-init --overwrite --no-telemetry --version 0.82.0
+          npx react-native init-windows --overwrite
         working-directory: ${{ github.workspace }}/test-windows-app
 
       # Build the Debug x64 solution. Autolinking should pull in llama.rn's
