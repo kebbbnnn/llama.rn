@@ -52,6 +52,29 @@
     <None Include="..\install\native-artifacts.json" />
   </ItemGroup>
 
+  <ItemGroup Label="JSI glue (no precompiled header — includes jsi/ReactCommon headers directly)">
+    <!-- The shared JSI glue under cpp/jsi/ does NOT #include the windows pch.h,
+         so it must be compiled without a precompiled header (NotUsing). -->
+    <ClCompile Include="..\cpp\jsi\JSIContext.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\cpp\jsi\JSIParams.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\cpp\jsi\JSITaskManager.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\cpp\jsi\JSIUtils.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\cpp\jsi\RNLlamaJSI.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\cpp\jsi\ThreadPool.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Prebuilt llama.cpp core artifact (installed by the postinstall step). -->
     <ResourceCompile Include="rnllama.rc" Condition="Exists('rnllama.rc')" />

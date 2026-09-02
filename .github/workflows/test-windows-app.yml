@@ -54,6 +54,21 @@ jobs:
           npx react-native init-windows --overwrite
         working-directory: ${{ github.workspace }}/test-windows-app
 
+      # Surface RNW's autolinking config resolution explicitly so a config
+      # error isn't buried inside run-windows. llama.rn must appear with its
+      # windows platform (from the repo-root react-native.config.js).
+      - name: Debug llama.rn autolink config
+        run: |
+          npx react-native config 2>&1 | grep -A8 '"llama.rn"' || echo "(llama.rn not resolved in config)"
+
+      # Autolink llama.rn into the generated windows/ project explicitly. This
+      # is the step that crashed before ("forEach on undefined"); separating it
+      # isolates the failure.
+      - name: Autolink Windows
+        run: |
+          npx react-native autolink-windows
+        working-directory: ${{ github.workspace }}/test-windows-app
+
       # Build the Debug x64 solution. Autolinking should pull in llama.rn's
       # windows/RNLlama.vcxproj (compiling windows/RNLlama.cpp + cpp/jsi/** and
       # linking rnllama.lib from the artifact above). This is what proves the
