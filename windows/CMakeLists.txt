@@ -129,3 +129,45 @@ set_target_properties(rnllama PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib"
     CXX_STANDARD 17
 )
+
+# ---------------------------------------------------------------------------
+# Optional Tier-1 verification target: compile the shared JSI glue
+# (cpp/jsi/**) against real React Native headers WITHOUT building an RNW app.
+#
+# Used by the `windows-glue` CI job to catch compile errors in
+# RNLlamaJSI.cpp & friends (the 127KB core binding + helpers) on MSVC, which is
+# the largest surface the core-only Windows build does not exercise. Pass the
+# RN ReactCommon include dirs with -DRN_INCLUDE_DIRS=dir1;dir2.
+# ---------------------------------------------------------------------------
+option(RNLLAMA_BUILD_GLUE_CHECK "Compile the shared JSI glue against RN headers (compile-only, no RNW app)" OFF)
+if (RNLLAMA_BUILD_GLUE_CHECK)
+  if (NOT DEFINED RN_INCLUDE_DIRS)
+    message(FATAL_ERROR "RNLLAMA_BUILD_GLUE_CHECK requires -DRN_INCLUDE_DIRS=<semicolon-separated ReactCommon dirs>")
+  endif ()
+
+  add_library(rnllama_glue OBJECT
+    ${SOURCE_DIR}/jsi/JSIContext.cpp
+    ${SOURCE_DIR}/jsi/JSIParams.cpp
+    ${SOURCE_DIR}/jsi/JSITaskManager.cpp
+    ${SOURCE_DIR}/jsi/JSIUtils.cpp
+    ${SOURCE_DIR}/jsi/RNLlamaJSI.cpp
+    ${SOURCE_DIR}/jsi/ThreadPool.cpp
+  )
+  target_include_directories(rnllama_glue PRIVATE
+    ${RN_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/common/jinja
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/hash
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/ggml-cpu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/tools/mtmd
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/codec/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/codec/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../cpp/nlohmann
+  )
+  target_compile_options(rnllama_glue PRIVATE
+    # _USE_MATH_DEFINES so cpp/ headers using M_* constants parse under MSVC.
+    $<$<CXX_COMPILER_ID:MSVC>:/D_USE_MATH_DEFINES>
+  )
+  set_target_properties(rnllama_glue PROPERTIES CXX_STANDARD 20)
+endif ()

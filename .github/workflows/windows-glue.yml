@@ -1,0 +1,60 @@
+name: Windows JSI glue compile
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-glue:
+    name: Compile shared JSI glue (cpp/jsi) against RN headers
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Root devDependencies include react-native (whose ReactCommon/ ships the
+      # jsi + CallInvoker headers the glue compiles against). Not using
+      # ./.github/actions/setup (that runs `npm run bootstrap` -> pod-install,
+      # macOS-only).
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja -y --no-progress
+
+      - name: Configure glue-compile target
+        shell: pwsh
+        run: |
+          $rn = (Resolve-Path "node_modules/react-native/ReactCommon").Path
+          # jsi/jsi.h lives under ReactCommon/jsi; <ReactCommon/CallInvoker.h>
+          # under ReactCommon/callinvoker.
+          $dirs = "$rn\callinvoker;$rn\jsi"
+          cmake -S windows -B .build-windows-glue -G Ninja `
+            -DRNLLAMA_BUILD_GLUE_CHECK=ON `
+            "-DRN_INCLUDE_DIRS=$dirs"
+
+      - name: Compile JSI glue
+        shell: pwsh
+        run: cmake --build .build-windows-glue --target rnllama_glue --parallel
+
+      - name: Verify glue objects
+        shell: pwsh
+        run: |
+          $objs = Get-ChildItem -Recurse .build-windows-glue -Filter "*.obj" | Where-Object { $_.FullName -match 'jsi' }
+          if (-not $objs) { throw "No JSI glue objects were produced" }
+          Write-Host "Compiled $($objs.Count) JSI glue object(s):"
+          $objs | ForEach-Object { Write-Host "  $($_.Name)" }
