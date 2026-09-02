@@ -23,6 +23,8 @@
    - Core bindings in `cpp/jsi/RNLlamaJSI.cpp` with helpers (`JSIParams`, `JSICompletion`, `JSISession`, `JSIRequestManager`, `ThreadPool`, etc.)
    - iOS install path: `ios/RNLlama.mm` + `ios/RNLlamaJSI.mm` register bindings on the JS runtime
    - Android install path: `android/src/main/java/com/rnllama/RNLlama.java` (native lib loader + HTP extraction), `android/src/main/java/com/rnllama/RNLlamaModuleShared.java`, and `android/src/main/RNLlamaJSI.cpp`
+   - macOS install path: `macos/RNLlama.mm` mirrors the iOS glue; pre-built core is `macos/rnllama-macos.framework`
+   - Windows install path: `windows/RNLlama.cpp` (ReactModuleBuilder module) + `windows/ReactPackageProvider` auto-link through react-native-windows; pre-built core is `windows/rnllama-<arch>/lib/rnllama.lib`
 
 3. **C++ Core (`cpp/`)**
    - llama.cpp sources are copied from `third_party/llama.cpp` with `LM_`/`lm_` prefixes

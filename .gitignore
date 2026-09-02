@@ -82,6 +82,9 @@ build-x86_64/
 jniLibs/
 build-ios/
 build-tvos/
+.build-macos/
+macos/rnllama-macos.framework/
+windows/rnllama-*/
 bin/
 llama-rn-android-jni-libs.tar.gz
 llama-rn-ios-xcframework.tar.gz
@@ -113,3 +116,7 @@ tests/android/build-hexagon/
 # skill-creator eval scaffolding (throwaway)
 .agents/skills/*-workspace/
 tests/build-metal/
+
+# Debug symbols
+*.dSYM
+*.dSYM/

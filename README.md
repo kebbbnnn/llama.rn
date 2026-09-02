@@ -99,6 +99,51 @@ module.exports = {
 }
 ```
 
+## Desktop (macOS & Windows)
+
+> [!WARNING]
+> These are experimental integrations. **react-native-macOS** has been
+> discontinued upstream (Microsoft archived it in 2023) and **react-native-windows**
+> only supports RN ≥ 0.73, so both require a desktop-capable RN setup (not the
+> mobile iOS/Android target). Use them for local/CI experimentation — validator
+> support is much thinner than iOS/Android.
+
+The native llama.cpp core builds for both desktop platforms; the JSI layer is
+compiled from source against your RN version, exactly like the mobile path.
+
+| Target | Library | Podspec | Pre-built native core |
+| ------ | ------- | ------- | --------------------- |
+| macOS  | `react-native-macOS` (deprecated upstream) | `llama-rn-macos.podspec` | `macos/rnllama-macos.framework` |
+| Windows | `react-native-windows` (RN ≥ 0.73) | — (autolinked) | `windows/rnllama-<arch>/lib/rnllama.lib` |
+
+The pre-built cores are downloaded on `postinstall` (same mechanism as
+iOS/Android) and verified with SHA-256:
+
+```txt
+ios/rnllama.xcframework
+macos/rnllama-macos.framework
+windows/rnllama-x64/  (and/or rnllama-arm64)
+android/src/main/jniLibs
+```
+
+**macOS.** Add `pod 'llama-rn-macos', :path => '../node_modules/llama.rn'` to
+your macOS Podfile. By default the pre-built `macos/rnllama-macos.framework`
+is used; set `RNLLAMA_BUILD_FROM_SOURCE=1` to compile the C++ core from source.
+
+**Windows.** The `windows/RNLlama.vcxproj` auto-links through
+react-native-windows. It always compiles the JSI glue (`cpp/jsi/**`) from source
+and links the vendored `rnllama.lib`.
+
+**Building the pre-built desktop cores** (CI / release):
+
+```sh
+npm run build:macos-framework     # -> macos/rnllama-macos.framework (+ dSYM)
+npm run build:windows-libs        # -> windows/rnllama-x64/, windows/rnllama-arm64/
+```
+
+Build a macOS framework single-arch for iteration with
+`RNLLAMA_MACOS_ARCHS=arm64 npm run build:macos-framework`.
+
 ## Obtain the model
 
 You can search HuggingFace for available models (Keyword: [`GGUF`](https://huggingface.co/search/full-text?q=GGUF&type=model)).

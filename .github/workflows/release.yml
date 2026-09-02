@@ -62,8 +62,55 @@ jobs:
             llama-rn-android-jni-libs.tar.gz
           retention-days: 1
 
+  build-macos:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build macOS framework
+        run: npm run build:macos-framework
+
+      - name: Package macOS framework
+        run: COPYFILE_DISABLE=1 tar -czf llama-rn-macos-framework.tar.gz macos/rnllama-macos.framework
+
+      - name: Upload macOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-artifacts
+          path: llama-rn-macos-framework.tar.gz
+          retention-days: 1
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # No ./.github/actions/setup: it runs `npm run bootstrap` (pod-install)
+      # which is macOS-only. Committed cpp/ sources are all this build needs.
+      - name: Build Windows core
+        run: powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
+
+      - name: Package Windows core
+        run: tar -czf llama-rn-windows-x64.tar.gz windows/rnllama-x64
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-artifacts
+          path: llama-rn-windows-x64.tar.gz
+          retention-days: 1
+
   publish:
-    needs: build-android
+    needs: [build-android, build-macos, build-windows]
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -119,6 +166,16 @@ jobs:
         with:
           name: android-build-artifacts
 
+      - name: Download macOS build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build-artifacts
+
+      - name: Download Windows build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build-artifacts
+
       - name: Build iOS frameworks
         run: npm run build:ios-frameworks
 
@@ -137,11 +194,15 @@ jobs:
             gh release upload "$RELEASE_TAG" \
               llama-rn-android-jni-libs.tar.gz \
               llama-rn-ios-xcframework.tar.gz \
+              llama-rn-macos-framework.tar.gz \
+              llama-rn-windows-x64.tar.gz \
               --clobber
           else
             gh release create "$RELEASE_TAG" \
               llama-rn-android-jni-libs.tar.gz \
               llama-rn-ios-xcframework.tar.gz \
+              llama-rn-macos-framework.tar.gz \
+              llama-rn-windows-x64.tar.gz \
               --target "$GITHUB_SHA" \
               --title "$RELEASE_TAG" \
               --notes ""

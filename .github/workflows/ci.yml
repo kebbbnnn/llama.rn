@@ -121,6 +121,46 @@ jobs:
         run: |
           npm run build:ios
 
+  build-macos-framework:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build macOS framework
+        run: npm run build:macos-framework
+
+      # macOS iOS framework builds rely on the Metal-embed assembly files that
+      # bootstrap generates; re-running bootstrap here keeps them fresh, then
+      # verifies the desktop framework still links with a matching dSYM.
+      - name: Verify macOS framework
+        run: |
+          test -f macos/rnllama-macos.framework/rnllama
+          test -d macos/rnllama-macos.framework.dSYM
+          dwarfdump --uuid macos/rnllama-macos.framework/rnllama
+
+  build-windows-core:
+    runs-on: windows-latest
+    steps:
+      # NOTE: does not use ./.github/actions/setup — that runs `npm run
+      # bootstrap` (pod-install) which is macOS-only and would fail on Windows.
+      # The llama.cpp sources under cpp/ are committed, so a fresh checkout is
+      # all the Windows core build needs.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Windows core (prebuilt lib)
+        run: powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1 -Arch x64
+
+      - name: Verify Windows core
+        run: |
+          if (-not (Test-Path "windows\rnllama-x64\lib\rnllama.lib")) { throw "rnllama.lib was not produced" }
+          Write-Host "rnllama.lib present:"
+          Get-ChildItem "windows\rnllama-x64\lib\rnllama.lib"
+
   build-android-from-source:
     runs-on: ubuntu-latest
     env:

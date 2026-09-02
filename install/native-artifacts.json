@@ -15,6 +15,22 @@
       "markerPath": "ios/rnllama.xcframework/.llama-rn.sha256",
       "legacyMarkerPath": "ios/.llama-rn-ios-xcframework.sha256",
       "sha256": null
+    },
+    {
+      "name": "macos-framework",
+      "assetName": "llama-rn-macos-framework.tar.gz",
+      "relativePath": "macos/rnllama-macos.framework",
+      "markerPath": "macos/rnllama-macos.framework/.llama-rn.sha256",
+      "legacyMarkerPath": "macos/.llama-rn-macos-framework.sha256",
+      "sha256": null
+    },
+    {
+      "name": "windows-x64-lib",
+      "assetName": "llama-rn-windows-x64.tar.gz",
+      "relativePath": "windows/rnllama-x64",
+      "markerPath": "windows/rnllama-x64/.llama-rn.sha256",
+      "legacyMarkerPath": "windows/.llama-rn-windows-x64.sha256",
+      "sha256": null
     }
   ]
 }

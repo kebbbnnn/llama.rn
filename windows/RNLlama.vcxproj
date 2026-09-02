@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  react-native-windows autolinked project for llama.rn.
+
+  Like Android's rnllama(.so) + JNI/from-source split, this project always
+  compiles the JSI binding glue (windows/*.cpp + cpp/jsi/**) from source so it
+  matches the consuming app's RN/RNW version, and links the prebuilt llama.cpp
+  core (rnllama.lib, the "LlamaRnRnl" downloaded artifact) for the heavy C++.
+-->
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildProjectDirectory)\packages" Condition="Exists('packages')" />
+  <Import Project="$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.props" Condition="Exists('$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.props')" />
+  <Import Project="$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.targets" Condition="Exists('$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.targets')" />
+
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+    <MinimalCoreWin>true</MinimalCoreWin>
+    <ProjectGuid>{b8f6d1c2-3a4e-4f50-9d61-2c7a8e9b1f43}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>RNLlama</RootNamespace>
+    <!-- Autokey the module so RN autolinking picks up the "RNLlama" native module. -->
+    <AutolinkedRNLibrariesDirectory>$(MSBuildThisFileDirectory)</AutolinkedRNLibrariesDirectory>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <!-- Allow building inside a host RNW app (autolink) or standalone. -->
+  <Import Condition="'$(ReactNativeWindowsDir)' != '' and Exists('$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.props')"
+          Project="$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.props" />
+
+  <ItemGroup>
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="RNLlama.cpp" />
+    <ClCompile Include="..\cpp\jsi\JSIContext.cpp" />
+    <ClCompile Include="..\cpp\jsi\JSIParams.cpp" />
+    <ClCompile Include="..\cpp\jsi\JSITaskManager.cpp" />
+    <ClCompile Include="..\cpp\jsi\JSIUtils.cpp" />
+    <ClCompile Include="..\cpp\jsi\RNLlamaJSI.cpp" />
+    <ClCompile Include="..\cpp\jsi\ThreadPool.cpp" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="RNLlama.h" />
+    <None Include="..\install\native-artifacts.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Prebuilt llama.cpp core artifact (installed by the postinstall step). -->
+    <ResourceCompile Include="rnllama.rc" Condition="Exists('rnllama.rc')" />
+    <Library Include="$(MSBuildThisFileDirectory)rnllama-x64\lib\rnllama.lib"
+             Condition="Exists('$(MSBuildThisFileDirectory)rnllama-x64\lib\rnllama.lib')" />
+  </ItemGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(MSBuildThisFileDirectory);
+        $(MSBuildThisFileDirectory)..\cpp;
+        $(MSBuildThisFileDirectory)..\cpp\common;
+        $(MSBuildThisFileDirectory)..\cpp\common\jinja;
+        $(MSBuildThisFileDirectory)..\cpp\hash;
+        $(MSBuildThisFileDirectory)..\cpp\ggml-cpu;
+        $(MSBuildThisFileDirectory)..\cpp\tools\mtmd;
+        $(MSBuildThisFileDirectory)..\cpp\codec\include;
+        $(MSBuildThisFileDirectory)..\cpp\codec\common;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /Zc:__cplusplus /std:c++17</AdditionalOptions>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>rnllama.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(MSBuildThisFileDirectory)rnllama-x64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Condition="'$(ReactNativeWindowsDir)' != '' and Exists('$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.targets')"
+          Project="$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.targets" />
+</Project>
