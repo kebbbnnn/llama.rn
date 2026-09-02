@@ -12,6 +12,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdarg>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -433,7 +435,7 @@ namespace rnllama_jsi {
         }
     }
 
-    void addContext(int contextId, long contextPtr) {
+    void addContext(int contextId, uintptr_t contextPtr) {
         g_llamaContexts.add(contextId, contextPtr);
     }
 
@@ -442,7 +444,7 @@ namespace rnllama_jsi {
     }
 
     rnllama::llama_rn_context* getContextOrThrow(int contextId) {
-        long ctxPtr = g_llamaContexts.get(contextId);
+        uintptr_t ctxPtr = g_llamaContexts.get(contextId);
         if (!ctxPtr) {
             throw std::runtime_error("Context not found");
         }
@@ -637,7 +639,7 @@ namespace rnllama_jsi {
                              }
                          }
 
-                         addContext(contextId, (long)ctx);
+                         addContext(contextId, reinterpret_cast<uintptr_t>(ctx));
 
                          std::string system_info = common_params_get_system_info(ctx->params);
 
@@ -648,7 +650,7 @@ namespace rnllama_jsi {
                              result.setProperty(rt, "systemInfo", jsi::String::createFromUtf8(rt, system_info));
 
                              // Model metadata and chat template capabilities
-                             long ctxPtr = g_llamaContexts.get(contextId);
+                             uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                              if (ctxPtr) {
                                  auto ctx = reinterpret_cast<rnllama::llama_rn_context*>(ctxPtr);
                                  result.setProperty(rt, "model", createModelDetails(rt, ctx));
@@ -723,7 +725,7 @@ namespace rnllama_jsi {
                     auto ctx = getContextOrThrow(contextId);
                     throwIfContextBusy(ctx);
                     return [contextId, path](jsi::Runtime& rt) {
-                        long ctxPtr = g_llamaContexts.get(contextId);
+                        uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                         if (!ctxPtr) {
                             throw std::runtime_error("Context was released");
                         }
@@ -1146,7 +1148,7 @@ namespace rnllama_jsi {
                                 if (runtime) {
                                     callInvoker->invokeAsync([onToken, output_copy, contextId, partial_output, has_partial_output, runtime]() {
                                         // Check if context is still valid (may have been released during async callback)
-                                        long ctxPtr = g_llamaContexts.get(contextId);
+                                        uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                                         if (!ctxPtr) {
                                             // Context was released, skip token callback
                                             return;
@@ -1169,7 +1171,7 @@ namespace rnllama_jsi {
 
                     return [contextId](jsi::Runtime& rt) -> jsi::Value {
                         // Check if context is still valid (may have been released during async callback)
-                        long ctxPtr = g_llamaContexts.get(contextId);
+                        uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                         if (!ctxPtr) {
                             // Context was released, return minimal interrupted result
                             jsi::Object res(rt);
@@ -1334,7 +1336,7 @@ namespace rnllama_jsi {
                             }
                             invokeAsyncTracked(callInvoker, contextId, [callbacks, contextId, tokenCopy, requestId, parsed_output, has_parsed_output, runtime](bool shouldProceed) {
                                 if (!shouldProceed) return;
-                                long ctxPtr = g_llamaContexts.get(contextId);
+                                uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                                 if (ctxPtr) {
                                     auto ctx = reinterpret_cast<rnllama::llama_rn_context*>(ctxPtr);
                                     auto& rt = *runtime;
@@ -1363,7 +1365,7 @@ namespace rnllama_jsi {
                             }
                             invokeAsyncTracked(callInvoker, contextId, [callbacks, contextId, result = std::move(result), runtime](bool shouldProceed) {
                                 if (!shouldProceed) return;
-                                long ctxPtr = g_llamaContexts.get(contextId);
+                                uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                                 if (!ctxPtr) {
                                     return;
                                 }
@@ -1711,7 +1713,7 @@ namespace rnllama_jsi {
                 int contextId = (int)arguments[0].asNumber();
                 int subscriberId = (int)arguments[1].asNumber();
 
-                long ctxPtr = g_llamaContexts.get(contextId);
+                uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                 if (ctxPtr) {
                     auto ctx = reinterpret_cast<rnllama::llama_rn_context*>(ctxPtr);
                     if (ctx->slot_manager) {
@@ -1731,7 +1733,7 @@ namespace rnllama_jsi {
                  int contextId = (int)arguments[0].asNumber();
                  return createPromiseTask(runtime, callInvoker, [contextId]() -> PromiseResultGenerator {
                      RequestManager::getInstance().clearContext(contextId);
-                     long ctxPtr = g_llamaContexts.get(contextId);
+                     uintptr_t ctxPtr = g_llamaContexts.get(contextId);
                      if (ctxPtr) {
                          auto ctx = reinterpret_cast<rnllama::llama_rn_context*>(ctxPtr);
                          if (ctx->completion) {
@@ -1774,7 +1776,7 @@ namespace rnllama_jsi {
 
                      auto contexts = g_llamaContexts.snapshot();
                      for (const auto& entry : contexts) {
-                         long ctxPtr = entry.second;
+                         uintptr_t ctxPtr = entry.second;
                          if (!ctxPtr) {
                              continue;
                          }
@@ -2392,7 +2394,7 @@ namespace rnllama_jsi {
         RequestManager::getInstance().clearAll();
         auto contexts = g_llamaContexts.snapshot();
         for (const auto& entry : contexts) {
-            long ctxPtr = entry.second;
+            uintptr_t ctxPtr = entry.second;
             if (!ctxPtr) {
                 continue;
             }
