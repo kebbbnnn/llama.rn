@@ -2,44 +2,52 @@
 
 #include "pch.h"
 
-#include <functional>
-#include <memory>
-#include <string>
+// RNW 0.82 native-module attribute API (Microsoft.ReactNative.Cxx). llama.rn
+// is registered as a TurboModule exposing a single `install()` method that
+// triggers the JSI binding setup (src/NativeRNLlama.ts), mirroring the
+// iOS/Android install trigger over RNW.
+#include <NativeModules.h>
 
-namespace winrt::Microsoft::ReactNative {
-struct ReactContext;
-struct IReactPackageBuilder;
-} // namespace winrt::Microsoft::ReactNative
+using namespace winrt::Microsoft::ReactNative;
+
+namespace winrt::RNLlama {
+
+// RNW attribute-based C++/WinRT TurboModule. REACT_TURBO_MODULE registers it
+// under the "RNLlama" name that src/NativeRNLlama.ts resolves via
+// TurboModuleRegistry. It is a plain struct (default-constructible) per the
+// macro contract.
+struct TurboModule {
+  ReactContext m_context{nullptr};
+
+  // Capture the ReactContext so `install()` can reach the live JSI runtime
+  // and the JS thread dispatcher on demand.
+  REACT_INIT(Initialize)
+  void Initialize(ReactContext const &reactContext) noexcept {
+    m_context = reactContext;
+  }
+
+  // Called from JS as RNLlama.install() -> Promise<boolean>. Installs the
+  // shared JSI bindings (cpp/jsi/RNLlamaJSI.cpp) on the JS thread, then
+  // resolves the Promise. Resolves false if the JS runtime can't be reached.
+  REACT_METHOD(Install)
+  void Install(ReactPromise<bool> result) noexcept;
+};
+
+} // namespace winrt::RNLlama
 
 namespace winrt::RNLlama::implementation {
 
-// RNW-native module that triggers llama.cpp JSI binding install. Unlike a
-// codegen TurboModule (which requires generated *Spec.h files against the exact
-// RN version), it registers the "RNLlama" module + "install" method directly
-// via ReactModuleBuilder, so it matches src/NativeRNLlama.ts and builds against
-// stock RNW headers.
-struct RNLlamaModule : winrt::implements<RNLlamaModule, winrt::Microsoft::ReactNative::IReactModuleBuilder> {
-  RNLlamaModule() = default;
-
-  void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept;
-  void CreateNativeModule(winrt::Microsoft::ReactNative::IReactModuleBuilder const &moduleBuilder) noexcept;
-
-  // Set through the module-builder initializer; used by "install" to reach the
-  // live JSI runtime + call invoker on demand.
-  winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
-};
-
-// Autolinked package entry point. The app lists ReactPackageProvider in its
-// App.cpp package providers, mirroring android/ReactPackage for RNW.
+// Package provider that registers the attributed TurboModule. This is what RNW
+// autolinking discovers and the app registers to expose "RNLlama".
 struct ReactPackageProvider
     : winrt::implements<ReactPackageProvider, winrt::Microsoft::ReactNative::IReactPackageProvider> {
-  ReactPackageProvider() = default;
   void CreatePackage(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept;
 };
 
 } // namespace winrt::RNLlama::implementation
 
 namespace winrt::RNLlama::factory_implementation {
+
 struct ReactPackageProvider
     : winrt::implements<ReactPackageProvider, winrt::Microsoft::ReactNative::IReactPackageProvider> {
   void CreatePackage(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
@@ -47,4 +55,5 @@ struct ReactPackageProvider
     provider.CreatePackage(packageBuilder);
   }
 };
+
 } // namespace winrt::RNLlama::factory_implementation
