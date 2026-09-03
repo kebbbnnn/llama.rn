@@ -1,36 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  react-native-windows autolinked project for llama.rn.
+  llama.rn Windows native module (react-native-windows autolinked project).
 
-  Like Android's rnllama(.so) + JNI/from-source split, this project always
-  compiles the JSI binding glue (windows/*.cpp + cpp/jsi/**) from source so it
-  matches the consuming app's RN/RNW version, and links the prebuilt llama.cpp
-  core (rnllama.lib, the "LlamaRnRnl" downloaded artifact) for the heavy C++.
+  Modern RNW (0.8x) C++ module authoring:
+  - references the Microsoft.ReactNative(.Cxx) + CppWinRT NuGet packages, which
+    provide the RN/RNW headers, winrt projections, and module registration glue;
+  - defines ReactNativeWindowsDir (required by Microsoft.ReactNative.VersionCheck);
+  - compiles the shared JSI glue (cpp/jsi/**) from source and links the
+    prebuilt llama.cpp core (rnllama.lib).
 -->
 <Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildProjectDirectory)\packages" Condition="Exists('packages')" />
-  <Import Project="$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.props" Condition="Exists('$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.props')" />
-  <Import Project="$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.targets" Condition="Exists('$(MSBuildProjectDirectory)\packages\Microsoft.Windows.CppWinRT.targets')" />
 
   <PropertyGroup Label="Globals">
     <CppWinRTOptimized>true</CppWinRTOptimized>
     <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
     <MinimalCoreWin>true</MinimalCoreWin>
     <ProjectGuid>{b8f6d1c2-3a4e-4f50-9d61-2c7a8e9b1f43}</ProjectGuid>
-    <Keyword>Win32Proj</Keyword>
+    <ProjectName>RNLlama</ProjectName>
     <RootNamespace>RNLlama</RootNamespace>
-    <!-- Autokey the module so RN autolinking picks up the "RNLlama" native module. -->
-    <AutolinkedRNLibrariesDirectory>$(MSBuildThisFileDirectory)</AutolinkedRNLibrariesDirectory>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppContainerApplication>true</AppContainerApplication>
+    <ApplicationType>Windows Store</ApplicationType>
+    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
   </PropertyGroup>
 
-  <!-- Pull RN + RNW headers from these packages (restored against the app's
-       RNW feed, see test-windows-app/NuGet.Config). Their props inject the
-       ReactCommon / RNW Cxx / generated winrt include paths the sources need. -->
+  <!-- RNW NuGet packages provide RN/RNW/CppWinRT headers (restored to ~/.nuget). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.220415.5" />
     <PackageReference Include="Microsoft.ReactNative" Version="0.82.0" />
     <PackageReference Include="Microsoft.ReactNative.Cxx" Version="0.82.0" />
   </ItemGroup>
+
+  <!-- Locate react-native-windows above the solution directory. -->
+  <PropertyGroup Label="ReactNativeWindowsProps">
+    <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
+  </PropertyGroup>
+
+  <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props')" />
+  <PropertyGroup Label="Fallback Windows SDK Versions">
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)' == ''">10.0.22621.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion Condition="'$(WindowsTargetPlatformMinVersion)' == ''">10.0.17763.0</WindowsTargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
 
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM64">
@@ -52,45 +65,39 @@
   </ItemGroup>
 
   <PropertyGroup Label="Configuration">
-    <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <UseDebugLibraries>true</UseDebugLibraries>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <UseDebugLibraries>false</UseDebugLibraries>
-  </PropertyGroup>
-
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-
-  <PropertyGroup>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+    <CharacterSet>Unicode</CharacterSet>
+    <GenerateManifest>false</GenerateManifest>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-
-  <!-- Allow building inside a host RNW app (autolink) or standalone. -->
-  <Import Condition="'$(ReactNativeWindowsDir)' != '' and Exists('$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.props')"
-          Project="$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
 
   <ItemGroup>
     <ClCompile Include="pch.cpp">
-      <!-- pch.cpp CREATES the precompiled header (pch.h). -->
       <PrecompiledHeader>Create</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="RNLlama.cpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RNLlama.h" />
-    <None Include="..\install\native-artifacts.json" />
-  </ItemGroup>
 
-  <ItemGroup Label="JSI glue (no precompiled header — includes jsi/ReactCommon headers directly)">
-    <!-- The shared JSI glue under cpp/jsi/ does NOT #include the windows pch.h,
-         so it must be compiled without a precompiled header (NotUsing). -->
+    <!-- Shared JSI glue compiled from source (no precompiled header). -->
     <ClCompile Include="..\cpp\jsi\JSIContext.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -111,13 +118,33 @@
     </ClCompile>
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Prebuilt llama.cpp core artifact (installed by the postinstall step). -->
-    <ResourceCompile Include="rnllama.rc" Condition="Exists('rnllama.rc')" />
-    <Library Include="$(MSBuildThisFileDirectory)rnllama-x64\lib\rnllama.lib"
-             Condition="Exists('$(MSBuildThisFileDirectory)rnllama-x64\lib\rnllama.lib')" />
-  </ItemGroup>
-
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj /std:c++17</AdditionalOptions>
+      <PreprocessorDefinitions>_WINRT_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>
+        $(MSBuildThisFileDirectory);
+        $(MSBuildThisFileDirectory)..\cpp;
+        $(MSBuildThisFileDirectory)..\cpp\common;
+        $(MSBuildThisFileDirectory)..\cpp\common\jinja;
+        $(MSBuildThisFileDirectory)..\cpp\hash;
+        $(MSBuildThisFileDirectory)..\cpp\ggml-cpu;
+        $(MSBuildThisFileDirectory)..\cpp\tools\mtmd;
+        $(MSBuildThisFileDirectory)..\cpp\codec\include;
+        $(MSBuildThisFileDirectory)..\cpp\codec\common;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>rnllama.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(MSBuildThisFileDirectory)rnllama-x64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -129,36 +156,10 @@
     </ClCompile>
   </ItemDefinitionGroup>
 
-  <ItemDefinitionGroup>
-    <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(MSBuildThisFileDirectory);
-        $(MSBuildThisFileDirectory)..\cpp;
-        $(MSBuildThisFileDirectory)..\cpp\common;
-        $(MSBuildThisFileDirectory)..\cpp\common\jinja;
-        $(MSBuildThisFileDirectory)..\cpp\hash;
-        $(MSBuildThisFileDirectory)..\cpp\ggml-cpu;
-        $(MSBuildThisFileDirectory)..\cpp\tools\mtmd;
-        $(MSBuildThisFileDirectory)..\cpp\codec\include;
-        $(MSBuildThisFileDirectory)..\cpp\codec\common;
-        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon;
-        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon\jsi;
-        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon\callinvoker;
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
-      <AdditionalOptions>%(AdditionalOptions) /Zc:__cplusplus /std:c++17</AdditionalOptions>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <LanguageStandard>stdcpp17</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>rnllama.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(MSBuildThisFileDirectory)rnllama-x64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <SubSystem>Console</SubSystem>
-    </Link>
-  </ItemDefinitionGroup>
-
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Import Condition="'$(ReactNativeWindowsDir)' != '' and Exists('$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.targets')"
-          Project="$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <!-- Microsoft.Windows.CppWinRT + Microsoft.ReactNative(.Cxx) are restored
+         as PackageReferences (to ~/.nuget); their targets supply the RN/RNW
+         headers, winrt projections, and the module registration glue. -->
+  </ImportGroup>
 </Project>
