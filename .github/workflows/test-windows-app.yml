@@ -71,6 +71,7 @@ jobs:
       - name: Initialize Windows project
         run: |
           npx react-native init-windows --overwrite
+          git checkout metro.config.js index.js App.tsx
         working-directory: ${{ github.workspace }}/test-windows-app
 
       # Autolink llama.rn into the generated windows/ project explicitly. The
