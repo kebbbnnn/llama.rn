@@ -4,7 +4,6 @@
 
 #include <jsi/jsi.h>
 #include <ReactCommon/CallInvoker.h>
-#include <cstdlib>
 
 #include <winrt/Windows.Storage.h>
 
@@ -16,19 +15,15 @@
 
 namespace winrt::RNLlama {
 
-// Test-only hook: when the RNLLAMA_SMOKE_MARKER env var is set, write a marker
-// file into the app's LocalFolder after the JSI bindings install successfully.
-// CI reads it back as a deterministic proof that installJSIBindings actually
-// ran on the live Windows runtime. The app is a packaged UWP (AppContainer), so
-// the marker must live in ApplicationData.LocalFolder (an arbitrary absolute
-// path would be blocked by the sandbox). Inert for normal consumers.
-static void writeSmokeMarkerIfRequested() noexcept {
-  if (!std::getenv("RNLLAMA_SMOKE_MARKER")) {
-    return;
-  }
+// Diagnostic marker (test hook): on successful installJSIBindings, write a tiny
+// file into the app's LocalFolder so CI can assert the bindings actually ran on
+// the live Windows runtime. Written unconditionally (UWP apps are launched via
+// shell activation and do NOT inherit the launching process's environment, so an
+// env-var gate would silently disable it). A ~3-byte file in the sandbox is
+// inert for normal consumers.
+static void writeInstallMarker() noexcept {
   try {
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    // CreateFileAsync creates or opens the file; WriteTextAsync writes it.
     auto file = localFolder.CreateFileAsync(
         L"rnllama-install-ok.txt",
         winrt::Windows::Storage::CreationCollisionOption::ReplaceExisting).get();
@@ -46,7 +41,7 @@ void TurboModule::Install(ReactPromise<bool> result) noexcept {
       try {
         auto callInvoker = m_context.CallInvoker();
         rnllama_jsi::installJSIBindings(runtime, callInvoker);
-        writeSmokeMarkerIfRequested();
+        writeInstallMarker();
         result.Resolve(true);
       } catch (...) {
         // installJSIBindings throws on a broken runtime; degrade gracefully so

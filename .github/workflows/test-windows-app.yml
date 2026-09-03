@@ -111,8 +111,6 @@ jobs:
       # succeeds; we poll for it. Debug needs Metro running to serve the JS
       # bundle (installJsi runs at module load in index.js).
       - name: Runtime smoke test (deploy + launch + verify JSI install)
-        env:
-          RNLLAMA_SMOKE_MARKER: "1"
         run: |
           # Clear any stale marker from prior runs.
           Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -142,12 +140,19 @@ jobs:
         working-directory: ${{ github.workspace }}/test-windows-app
         timeout-minutes: 30
 
-      - name: Verify JSI install marker
+      - name: Verify JSI install marker (poll)
         shell: pwsh
         run: |
-          $marker = Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Select-Object -First 1
+          # The app takes time after launch to load the JS bundle from Metro and
+          # run installJsi(), so poll for the marker up to 3 minutes.
+          $marker = $null
+          for ($i = 0; $i -lt 90; $i++) {
+            Start-Sleep -Seconds 2
+            $marker = Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($marker) { break }
+          }
           if (-not $marker) {
-            Write-Error "JSI install marker not found — llama.rn did not install its JSII bindings at runtime on Windows."
+            Write-Error "JSI install marker not found — llama.rn did not install its JSI bindings at runtime on Windows (checked for 3 min)."
             exit 1
           }
           Write-Host "JSI install marker found: $($marker.FullName)"
