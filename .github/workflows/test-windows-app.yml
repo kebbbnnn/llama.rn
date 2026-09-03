@@ -49,19 +49,30 @@ jobs:
 
       # npm may symlink `file:..` (node_modules/llama.rn -> repo root) or copy it.
       # The autolinked RNLlama.vcxproj links rnllama.lib relative to the copy it
-      # is built from, so guarantee the prebuilt core is reachable either way.
+      # is built from. When npm symlinks (common with `file:` deps), the paths
+      # are the same and there is nothing to copy — but a copied install must get
+      # the prebuilt core (lib/Release + lib/Debug). Guard against self-copy.
       - name: Ensure prebuilt core reachable from node_modules/llama.rn
         shell: pwsh
         run: |
-          $src = "windows\rnllama-x64"
-          $dst = "test-windows-app\node_modules\llama.rn\windows\rnllama-x64"
-          if (Test-Path (Join-Path $dst "lib\rnllama.lib")) {
-            Write-Host "core already present at $dst (symlinked install)"
-          } else {
-            Write-Host "copying prebuilt core to $dst (copied install)"
+          $src = (Resolve-Path "windows\rnllama-x64" -ErrorAction Stop).Path
+          $dst = (Resolve-Path "test-windows-app\node_modules\llama.rn\windows\rnllama-x64" -ErrorAction SilentlyContinue)
+          if (-not $dst) {
+            Write-Host "copied install (no windows/rnllama-x64 yet); copying prebuilt core"
+            $dst = Join-Path (Resolve-Path "test-windows-app\node_modules\llama.rn" -ErrorAction Stop).Path "windows\rnllama-x64"
             New-Item -ItemType Directory -Force -Path $dst | Out-Null
             Copy-Item -Recurse -Force (Join-Path $src "*") $dst
+          } elseif ($dst.Path -eq $src) {
+            Write-Host "symlinked install; prebuilt core already reachable ($dst)"
+          } else {
+            Write-Host "copied install; syncing prebuilt core to $($dst.Path)"
+            Copy-Item -Recurse -Force (Join-Path $src "*") $dst.Path
           }
+          # Final assert: the Release core must be present at the resolved dst.
+          $dstPath = if ($dst -is [string]) { $dst } else { $dst.Path }
+          Write-Host "dst=$dstPath"
+          Write-Host "Release core present: $(Test-Path (Join-Path $dstPath 'lib\Release\rnllama.lib'))"
+          Write-Host "Debug core present:   $(Test-Path (Join-Path $dstPath 'lib\Debug\rnllama.lib'))"
 
       # Generate the RNW windows/ project for the app + autolink llama.rn.
       # react-native-windows is pinned in test-windows-app/package.json so the
