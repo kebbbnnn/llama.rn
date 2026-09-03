@@ -103,7 +103,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ModuleDefinitionFile>RNLlama.def</ModuleDefinitionFile>
       <AdditionalDependencies>rnllama.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(MSBuildThisFileDirectory)rnllama-$(Platform)\lib;$(MSBuildThisFileDirectory)rnllama-x64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MSBuildThisFileDirectory)rnllama-$(Platform)\lib\$(Configuration);$(MSBuildThisFileDirectory)rnllama-$(Platform)\lib;$(MSBuildThisFileDirectory)rnllama-x64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
