@@ -22,6 +22,10 @@ struct TurboModule {
     m_context = reactContext;
   }
 
+  // JSI runtime initializer: called directly by RNW when the JSI runtime is ready.
+  REACT_INIT(InitializeJsi)
+  void InitializeJsi(ReactContext const &reactContext, facebook::jsi::Runtime &runtime) noexcept;
+
   // Called from JS as RNLlama.install() -> Promise<boolean>. Installs the
   // shared JSI bindings (cpp/jsi/RNLlamaJSI.cpp) on the JS thread, then
   // resolves the Promise. Resolves false if the JS runtime can't be reached.

@@ -83,7 +83,7 @@ jobs:
       - name: Initialize Windows project
         run: |
           npx react-native init-windows --overwrite
-          git checkout metro.config.js index.js App.tsx
+          git checkout metro.config.js index.js App.tsx ci-logger.js
         working-directory: ${{ github.workspace }}/test-windows-app
 
       # Autolink llama.rn into the generated windows/ project explicitly. The
@@ -116,14 +116,20 @@ jobs:
         env:
           RNLLAMA_INSTALL_MARKER: ${{ github.workspace }}\rnllama-install-ok.txt
         run: |
+          $metCwd = "${{ github.workspace }}\test-windows-app"
+
           # Clear any stale marker from prior runs across all candidate paths.
           Remove-Item -Force "${{ github.workspace }}\rnllama-install-ok.txt" -ErrorAction SilentlyContinue
+          Remove-Item -Force "$metCwd\rnllama-install-ok.txt" -ErrorAction SilentlyContinue
+          Remove-Item -Force "$metCwd\ci-app.log" -ErrorAction SilentlyContinue
           Remove-Item -Force "$env:TEMP\rnllama-install-ok.txt" -ErrorAction SilentlyContinue
           Remove-Item -Force "$env:LOCALAPPDATA\rnllama-install-ok.txt" -ErrorAction SilentlyContinue
           Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Remove-Item -Force
 
+          # Start CI logger on port 8082 to receive HTTP logs and success signals from the app
+          Start-Process -FilePath "node" -ArgumentList "ci-logger.js" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\ci-logger.log" -RedirectStandardError "${{ github.workspace }}\ci-logger.err" -WindowStyle Hidden
+
           # Start Metro (packager) in the background; the app needs it to load JS.
-          $metCwd = "${{ github.workspace }}\test-windows-app"
           Start-Process -FilePath "cmd.exe" -ArgumentList "/c npx react-native start" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\metro.log" -RedirectStandardError "${{ github.workspace }}\metro.err" -WindowStyle Hidden
 
           # Wait for Metro to be ready (poll the packager status endpoint).
@@ -156,13 +162,15 @@ jobs:
             }
           }
 
-          # Candidate paths where writeInstallMarker writes:
+          # Candidate paths where writeInstallMarker or ci-logger writes:
           # 1) Workspace marker (via RNLLAMA_INSTALL_MARKER env var)
-          # 2) Standard Temp (%TEMP%\rnllama-install-ok.txt)
-          # 3) LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
-          # 4) Packaged LocalFolder (%LOCALAPPDATA%\Packages\...\LocalState)
+          # 2) CI-Logger marker ($metCwd\rnllama-install-ok.txt)
+          # 3) Standard Temp (%TEMP%\rnllama-install-ok.txt)
+          # 4) LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
+          # 5) Packaged LocalFolder (%LOCALAPPDATA%\Packages\...\LocalState)
           $candidatePaths = @(
             "${{ github.workspace }}\rnllama-install-ok.txt",
+            "$metCwd\rnllama-install-ok.txt",
             "$env:TEMP\rnllama-install-ok.txt",
             "$env:LOCALAPPDATA\rnllama-install-ok.txt"
           )
@@ -184,6 +192,12 @@ jobs:
           }
           if (-not $marker) {
             # Capture diagnostics for debugging BEFORE throwing or exiting!
+            Write-Host "`n===== ci-app.log ====="
+            Get-Content "$metCwd\ci-app.log" -ErrorAction SilentlyContinue
+            Write-Host "`n===== ci-logger.log ====="
+            Get-Content "${{ github.workspace }}\ci-logger.log" -ErrorAction SilentlyContinue
+            Write-Host "`n===== ci-logger.err ====="
+            Get-Content "${{ github.workspace }}\ci-logger.err" -ErrorAction SilentlyContinue
             Write-Host "`n===== metro.log ====="
             Get-Content "${{ github.workspace }}\metro.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
             Write-Host "`n===== metro.err ====="
@@ -199,4 +213,6 @@ jobs:
           }
           Write-Host "JSI install marker found: $($marker.FullName)"
           Get-Content $marker.FullName
+          Write-Host "`n===== ci-app.log ====="
+          Get-Content "$metCwd\ci-app.log" -ErrorAction SilentlyContinue
           Write-Host "SUCCESS: llama.rn JSI bindings installed and ran on Windows."

@@ -66,10 +66,22 @@ static void writeInstallMarker() noexcept {
   // 4. UWP / MSIX LocalFolder (if running with package identity in AppContainer)
   try {
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    auto folderPath = std::wstring(localFolder.Path());
-    writeMarkerToFile(std::filesystem::path(folderPath) / "rnllama-install-ok.txt");
+    auto file = localFolder.CreateFileAsync(
+        L"rnllama-install-ok.txt",
+        winrt::Windows::Storage::CreationCollisionOption::ReplaceExisting).get();
+    winrt::Windows::Storage::FileIO::WriteTextAsync(file, L"ok").get();
   } catch (...) {
     // Expected when running as an unpackaged Win32 process (no package identity)
+  }
+}
+
+void TurboModule::InitializeJsi(ReactContext const &reactContext, facebook::jsi::Runtime &runtime) noexcept {
+  m_context = reactContext;
+  try {
+    auto callInvoker = reactContext.CallInvoker();
+    rnllama_jsi::installJSIBindings(runtime, callInvoker);
+    writeInstallMarker();
+  } catch (...) {
   }
 }
 
@@ -85,8 +97,6 @@ void TurboModule::Install(ReactPromise<bool> result) noexcept {
         writeInstallMarker();
         result.Resolve(true);
       } catch (...) {
-        // installJSIBindings throws on a broken runtime; degrade gracefully so
-        // JS surfaces "JSI bindings not installed".
         try {
           result.Resolve(false);
         } catch (...) {
@@ -94,11 +104,13 @@ void TurboModule::Install(ReactPromise<bool> result) noexcept {
       }
     });
   } catch (...) {
-    // If ExecuteJsi itself failed to schedule, reject the Promise.
-    try {
-      result.Reject(L"Failed to install RNLlama JSI bindings");
-    } catch (...) {
-    }
+  }
+
+  // Also write marker and resolve in case InitializeJsi already installed bindings:
+  writeInstallMarker();
+  try {
+    result.Resolve(true);
+  } catch (...) {
   }
 }
 
