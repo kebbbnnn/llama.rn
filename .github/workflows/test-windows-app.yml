@@ -82,12 +82,12 @@ jobs:
           npx react-native autolink-windows
         working-directory: ${{ github.workspace }}/test-windows-app
 
-      # Build the Debug x64 solution. Autolinking should pull in llama.rn's
+      # Build the Release x64 solution. Autolinking should pull in llama.rn's
       # windows/RNLlama.vcxproj (compiling windows/RNLlama.cpp + cpp/jsi/** and
       # linking rnllama.lib from the artifact above). This is what proves the
       # module compiles for real and links into a full RNW app.
-      - name: Build app (Debug x64)
+      - name: Build app (Release x64)
         run: |
-          npx react-native run-windows --no-launch --arch x64 --logging --no-deploy --no-packager
+          npx react-native run-windows --release --no-launch --arch x64 --logging --no-deploy --no-packager
         working-directory: ${{ github.workspace }}/test-windows-app
         timeout-minutes: 60
