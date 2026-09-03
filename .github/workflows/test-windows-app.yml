@@ -95,17 +95,36 @@ jobs:
 
       # Runtime smoke test: deploy + launch the app for real and assert that
       # installJsi() / installJSIBindings actually run on the live Windows
-      # runtime. Windows NativeModule writes a marker into the app's LocalFolder
-      # (AppContainer sandbox) when install succeeds; we poll for it. The JS
-      # bundle must be present, so we build with --bundle in Release.
+      # runtime. RNLlama writes a marker into the app's LocalFolder when install
+      # succeeds; we poll for it. Debug needs Metro running to serve the JS
+      # bundle (installJsi runs at module load in index.js).
       - name: Runtime smoke test (deploy + launch + verify JSI install)
         env:
           RNLLAMA_SMOKE_MARKER: "1"
         run: |
           # Clear any stale marker from prior runs.
           Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Remove-Item -Force
-          # Deploy + launch the app (no packager needed: bundle baked into the app).
-          npx react-native run-windows --release --arch x64 --logging --no-packager --bundle
+
+          # Start Metro (packager) in the background; the app needs it to load JS.
+          $metCwd = "${{ github.workspace }}\test-windows-app"
+          $npx = "$metCwd\node_modules\.bin\npx.cmd"
+          Start-Process -FilePath $npx -ArgumentList "react-native start" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\metro.log" -RedirectStandardError "${{ github.workspace }}\metro.err" -WindowStyle Hidden
+
+          # Wait for Metro to be ready (poll the packager status endpoint).
+          $ready = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 2
+            try {
+              $r = Invoke-WebRequest -Uri "http://localhost:8081/status" -UseBasicParsing -TimeoutSec 2
+              if ($r.StatusCode -eq 200) { $ready = $true; break }
+            } catch {}
+          }
+          if (-not $ready) { Write-Error "Metro did not become ready (see metro.err)"; Get-Content "${{ github.workspace }}\metro.err" -ErrorAction SilentlyContinue; exit 1 }
+
+          # Deploy + launch the app (Debug x64). This triggers a Debug build
+          # (the prior step built Release); Debug uses the .sln's Debug|x64,
+          # avoiding the invalid ReleaseBundle|x64 from --bundle.
+          npx react-native run-windows --arch x64 --logging --no-packager
         working-directory: ${{ github.workspace }}/test-windows-app
         timeout-minutes: 30
 
