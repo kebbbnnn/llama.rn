@@ -49,27 +49,28 @@ jobs:
 
       # npm may symlink `file:..` (node_modules/llama.rn -> repo root) or copy it.
       # The autolinked RNLlama.vcxproj links rnllama.lib relative to the copy it
-      # is built from. When npm symlinks (common with `file:` deps), the paths
-      # are the same and there is nothing to copy — but a copied install must get
-      # the prebuilt core (lib/Release + lib/Debug). Guard against self-copy.
+      # is built from. When llama.rn is a symlink/junction to the repo root, the
+      # vcxproj resolves to the repo's own windows/RNLlama.vcxproj and already
+      # sees the prebuilt core at windows/rnllama-x64/ — nothing to copy. Only a
+      # truly copied install needs the core synced. Detect the link type instead
+      # of comparing resolved paths (which is unreliable on Windows).
       - name: Ensure prebuilt core reachable from node_modules/llama.rn
         shell: pwsh
         run: |
           $src = (Resolve-Path "windows\rnllama-x64" -ErrorAction Stop).Path
-          $dst = (Resolve-Path "test-windows-app\node_modules\llama.rn\windows\rnllama-x64" -ErrorAction SilentlyContinue)
-          if (-not $dst) {
-            Write-Host "copied install (no windows/rnllama-x64 yet); copying prebuilt core"
-            $dst = Join-Path (Resolve-Path "test-windows-app\node_modules\llama.rn" -ErrorAction Stop).Path "windows\rnllama-x64"
-            New-Item -ItemType Directory -Force -Path $dst | Out-Null
-            Copy-Item -Recurse -Force (Join-Path $src "*") $dst
-          } elseif ($dst.Path -eq $src) {
-            Write-Host "symlinked install; prebuilt core already reachable ($dst)"
+          $pkgItem = Get-Item "test-windows-app\node_modules\llama.rn" -ErrorAction Stop
+          $isLink = ($pkgItem.LinkType -eq 'SymbolicLink' -or $pkgItem.LinkType -eq 'Junction')
+
+          if ($isLink) {
+            Write-Host "node_modules/llama.rn is a $($pkgItem.LinkType) -> $($pkgItem.Target); prebuilt core already reachable via repo"
+            $dstPath = $src
           } else {
-            Write-Host "copied install; syncing prebuilt core to $($dst.Path)"
-            Copy-Item -Recurse -Force (Join-Path $src "*") $dst.Path
+            Write-Host "node_modules/llama.rn is a copied install; copying prebuilt core"
+            $dstPath = Join-Path $pkgItem.FullName "windows\rnllama-x64"
+            New-Item -ItemType Directory -Force -Path $dstPath | Out-Null
+            Copy-Item -Recurse -Force (Join-Path $src "*") $dstPath
           }
-          # Final assert: the Release core must be present at the resolved dst.
-          $dstPath = if ($dst -is [string]) { $dst } else { $dst.Path }
+          # Final assert: the Release + Debug core must be present at dstPath.
           Write-Host "dst=$dstPath"
           Write-Host "Release core present: $(Test-Path (Join-Path $dstPath 'lib\Release\rnllama.lib'))"
           Write-Host "Debug core present:   $(Test-Path (Join-Path $dstPath 'lib\Debug\rnllama.lib'))"
