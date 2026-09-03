@@ -4,113 +4,68 @@
 
 #include <jsi/jsi.h>
 #include <ReactCommon/CallInvoker.h>
-
-#include <winrt/Windows.Storage.h>
+#include <atomic>
 
 // Core JSI bindings (shared with iOS/Android).
 #include "jsi/RNLlamaJSI.h"
 
-// ExecuteJsi / MakeAbiCallInvoker come from Cxx JSI helpers.
+// ExecuteJsi / ReactContext::CallInvoker come from RNW Cxx JSI helpers.
 #include <ReactContext.h>
-
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
 
 namespace winrt::RNLlama {
 
-// Diagnostic marker (test hook): on successful installJSIBindings, write a marker
-// so CI can assert the bindings actually ran on the live Windows runtime.
-// Supports both unpackaged Win32 applications (via env var, temp dir, or LocalAppData)
-// and packaged UWP/MSIX applications (via ApplicationData::Current().LocalFolder()).
-static void writeMarkerToFile(std::filesystem::path const &p) noexcept {
+// Installs the shared llama.cpp JSI bindings on the live JS runtime. Idempotent
+// (re-running just re-registers the global functions). Returns false if the
+// install threw (broken runtime).
+static bool installBindings(ReactContext const &context, facebook::jsi::Runtime &runtime) noexcept {
   try {
-    std::error_code ec;
-    if (p.has_parent_path()) {
-      std::filesystem::create_directories(p.parent_path(), ec);
-    }
-    std::ofstream out(p, std::ios::out | std::ios::trunc);
-    if (out.is_open()) {
-      out << "ok\n";
-      out.flush();
-    }
+    auto callInvoker = context.CallInvoker();
+    rnllama_jsi::installJSIBindings(runtime, callInvoker);
+    return true;
   } catch (...) {
+    return false;
   }
 }
 
-static void writeInstallMarker() noexcept {
-  // 1. Explicit marker path from environment variable (Win32 desktop app)
-  if (const char *envPath = std::getenv("RNLLAMA_INSTALL_MARKER")) {
-    if (envPath[0] != '\0') {
-      writeMarkerToFile(envPath);
-    }
-  }
-
-  // 2. Standard temp directory (%TEMP% / std::filesystem::temp_directory_path())
-  try {
-    std::error_code ec;
-    auto tempDir = std::filesystem::temp_directory_path(ec);
-    if (!ec) {
-      writeMarkerToFile(tempDir / "rnllama-install-ok.txt");
-    }
-  } catch (...) {
-  }
-
-  // 3. LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
-  if (const char *localAppData = std::getenv("LOCALAPPDATA")) {
-    if (localAppData[0] != '\0') {
-      writeMarkerToFile(std::filesystem::path(localAppData) / "rnllama-install-ok.txt");
-    }
-  }
-
-  // 4. UWP / MSIX LocalFolder (if running with package identity in AppContainer)
-  try {
-    auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    auto file = localFolder.CreateFileAsync(
-        L"rnllama-install-ok.txt",
-        winrt::Windows::Storage::CreationCollisionOption::ReplaceExisting).get();
-    winrt::Windows::Storage::FileIO::WriteTextAsync(file, L"ok").get();
-  } catch (...) {
-    // Expected when running as an unpackaged Win32 process (no package identity)
-  }
-}
-
+// RNW invokes this when the JS runtime is ready, before any JS runs. Installing
+// the bindings here gives Windows consumers the "it just works" experience with
+// no explicit installJsi() call needed, while remaining idempotent if install()
+// is also called later.
 void TurboModule::InitializeJsi(ReactContext const &reactContext, facebook::jsi::Runtime &runtime) noexcept {
   m_context = reactContext;
-  try {
-    auto callInvoker = reactContext.CallInvoker();
-    rnllama_jsi::installJSIBindings(runtime, callInvoker);
-    writeInstallMarker();
-  } catch (...) {
+  if (installBindings(reactContext, runtime)) {
+    m_installed.store(true, std::memory_order_relaxed);
   }
 }
 
 void TurboModule::Install(ReactPromise<bool> result) noexcept {
+  // If InitializeJsi already installed the bindings, this is an idempotent
+  // success report. Otherwise attempt the install now on the JS thread.
+  if (m_installed.load(std::memory_order_relaxed)) {
+    try {
+      result.Resolve(true);
+    } catch (...) {
+    }
+    return;
+  }
+
   try {
-    // ExecuteJsi runs the lambda on the JS thread with the live
-    // facebook::jsi::Runtime&, and ReactContext::CallInvoker produces a
-    // CallInvoker rooted at this ReactContext (the JS thread dispatcher).
+    // ExecuteJsi runs the lambda on the JS thread with the live runtime.
     ExecuteJsi(m_context, [this, result](facebook::jsi::Runtime &runtime) {
+      bool ok = installBindings(m_context, runtime);
+      if (ok) {
+        m_installed.store(true, std::memory_order_relaxed);
+      }
       try {
-        auto callInvoker = m_context.CallInvoker();
-        rnllama_jsi::installJSIBindings(runtime, callInvoker);
-        writeInstallMarker();
-        result.Resolve(true);
+        result.Resolve(ok);
       } catch (...) {
-        try {
-          result.Resolve(false);
-        } catch (...) {
-        }
       }
     });
   } catch (...) {
-  }
-
-  // Also write marker and resolve in case InitializeJsi already installed bindings:
-  writeInstallMarker();
-  try {
-    result.Resolve(true);
-  } catch (...) {
+    try {
+      result.Resolve(false);
+    } catch (...) {
+    }
   }
 }
 
