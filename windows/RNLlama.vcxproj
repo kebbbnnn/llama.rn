@@ -68,14 +68,12 @@
           Project="$(ReactNativeWindowsDir)PropertySheets\External\Microsoft.ReactNative.Uwp.CppLib.props" />
 
   <ItemGroup>
-    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="pch.cpp">
+      <!-- pch.cpp CREATES the precompiled header (pch.h). -->
+      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
     <ClCompile Include="RNLlama.cpp" />
-    <ClCompile Include="..\cpp\jsi\JSIContext.cpp" />
-    <ClCompile Include="..\cpp\jsi\JSIParams.cpp" />
-    <ClCompile Include="..\cpp\jsi\JSITaskManager.cpp" />
-    <ClCompile Include="..\cpp\jsi\JSIUtils.cpp" />
-    <ClCompile Include="..\cpp\jsi\RNLlamaJSI.cpp" />
-    <ClCompile Include="..\cpp\jsi\ThreadPool.cpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RNLlama.h" />
     <None Include="..\install\native-artifacts.json" />
