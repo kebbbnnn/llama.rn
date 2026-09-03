@@ -141,6 +141,7 @@ jobs:
 
       - name: Verify JSI install marker (poll)
         shell: pwsh
+        continue-on-error: false
         run: |
           # The app takes time after launch to load the JS bundle from Metro and
           # run installJsi(), so poll for the marker up to 3 minutes.
@@ -152,6 +153,15 @@ jobs:
           }
           if (-not $marker) {
             Write-Error "JSI install marker not found — llama.rn did not install its JSI bindings at runtime on Windows (checked for 3 min)."
+            # Capture diagnostics for debugging (survives even though this step fails).
+            Write-Host "`n===== metro.log ====="
+            Get-Content "${{ github.workspace }}\metro.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
+            Write-Host "`n===== metro.err ====="
+            Get-Content "${{ github.workspace }}\metro.err" -ErrorAction SilentlyContinue | Select-Object -Last 80
+            Write-Host "`n===== app packages (any RNLlama*) ====="
+            Get-AppxPackage -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*RNLlama*' } | Select-Object Name, InstallLocation, PackageFamilyName | Format-List
+            Write-Host "`n===== sample LocalAppData\\Packages dirs ====="
+            Get-ChildItem "$env:LOCALAPPDATA\Packages" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*RNLlama*' } | Select-Object FullName
             exit 1
           }
           Write-Host "JSI install marker found: $($marker.FullName)"
