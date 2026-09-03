@@ -20,6 +20,7 @@
     <ReactNativeDir Condition="'$(ReactNativeDir)' == '' and Exists('$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), &quot;node_modules\react-native\package.json&quot;))\node_modules\react-native\')">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'node_modules\react-native\package.json'))\node_modules\react-native\</ReactNativeDir>
     <ReactNativeDir Condition="'$(ReactNativeDir)' == '' and '$(SolutionDir)' != '' and Exists('$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), &quot;node_modules\react-native\package.json&quot;))\node_modules\react-native\')">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'node_modules\react-native\package.json'))\node_modules\react-native\</ReactNativeDir>
     <RunAutolinkCheck>false</RunAutolinkCheck>
+    <RunCodegenWindows>false</RunCodegenWindows>
   </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props')" />
   <PropertyGroup Label="Fallback Windows SDK Versions">
@@ -187,4 +188,6 @@
     <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props'))" />
     <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets'))" />
   </Target>
+  <!-- llama.rn registers TurboModules directly in C++ and does not use RNW codegen -->
+  <Target Name="CodegenWindows" />
 </Project>
