@@ -14,5 +14,14 @@ module.exports = mergeConfig(defaultConfig, {
     extraNodeModules: {
       'llama.rn': root,
     },
+    blockList: [
+      /.*[/\\]\.build-windows-.*[/\\].*/,
+      /.*[/\\]third_party[/\\].*/,
+      /.*[/\\]windows[/\\].*/,
+      /.*[/\\]example[/\\].*/,
+      /.*[/\\]android[/\\].*/,
+      /.*[/\\]ios[/\\].*/,
+      /.*[/\\]macos[/\\].*/,
+    ],
   },
 })

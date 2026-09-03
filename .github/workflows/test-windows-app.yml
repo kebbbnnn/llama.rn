@@ -107,10 +107,12 @@ jobs:
 
       # Runtime smoke test: deploy + launch the app for real and assert that
       # installJsi() / installJSIBindings actually run on the live Windows
-      # runtime. RNLlama writes a marker when install succeeds; we poll for it.
-      # Debug needs Metro running to serve the JS bundle (installJsi runs at
-      # module load in index.js).
+      # runtime. Metro must remain running in the SAME step so the runner does
+      # not terminate it before the app can finish fetching the JS bundle.
       - name: Runtime smoke test (deploy + launch + verify JSI install)
+        shell: pwsh
+        working-directory: ${{ github.workspace }}/test-windows-app
+        timeout-minutes: 30
         env:
           RNLLAMA_INSTALL_MARKER: ${{ github.workspace }}\rnllama-install-ok.txt
         run: |
@@ -122,9 +124,6 @@ jobs:
 
           # Start Metro (packager) in the background; the app needs it to load JS.
           $metCwd = "${{ github.workspace }}\test-windows-app"
-          # Use cmd /c npx (resolves npx from PATHS set by setup-node) rather
-          # than node_modules\.bin\npx.cmd, which may not exist depending on how
-          # npm linked the packages.
           Start-Process -FilePath "cmd.exe" -ArgumentList "/c npx react-native start" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\metro.log" -RedirectStandardError "${{ github.workspace }}\metro.err" -WindowStyle Hidden
 
           # Wait for Metro to be ready (poll the packager status endpoint).
@@ -136,30 +135,15 @@ jobs:
               if ($r.StatusCode -eq 200) { $ready = $true; break }
             } catch {}
           }
-          if (-not $ready) { Write-Error "Metro did not become ready (see metro.err)"; Get-Content "${{ github.workspace }}\metro.err" -ErrorAction SilentlyContinue; exit 1 }
+          if (-not $ready) {
+            Write-Error "Metro did not become ready (see metro.err)"
+            Get-Content "${{ github.workspace }}\metro.err" -ErrorAction SilentlyContinue
+            exit 1
+          }
 
           # Deploy + launch the app (Debug x64). RNW's run-windows already handles
           # loopback exemption + launch, so a plain launch is sufficient.
           npx react-native run-windows --arch x64 --logging --no-packager
-        working-directory: ${{ github.workspace }}/test-windows-app
-        timeout-minutes: 30
-
-      - name: Verify JSI install marker (poll)
-        shell: pwsh
-        continue-on-error: false
-        env:
-          RNLLAMA_INSTALL_MARKER: ${{ github.workspace }}\rnllama-install-ok.txt
-        run: |
-          # Candidate paths where writeInstallMarker writes:
-          # 1) Workspace marker (via RNLLAMA_INSTALL_MARKER env var)
-          # 2) Standard Temp (%TEMP%\rnllama-install-ok.txt)
-          # 3) LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
-          # 4) Packaged LocalFolder (%LOCALAPPDATA%\Packages\...\LocalState)
-          $candidatePaths = @(
-            "${{ github.workspace }}\rnllama-install-ok.txt",
-            "$env:TEMP\rnllama-install-ok.txt",
-            "$env:LOCALAPPDATA\rnllama-install-ok.txt"
-          )
 
           # If app process is not running after run-windows (e.g. headless CI activation
           # suspended or didn't start the GUI process), launch the built Win32 exe directly.
@@ -171,6 +155,17 @@ jobs:
               Start-Process -FilePath $exe.FullName -WorkingDirectory $exe.DirectoryName
             }
           }
+
+          # Candidate paths where writeInstallMarker writes:
+          # 1) Workspace marker (via RNLLAMA_INSTALL_MARKER env var)
+          # 2) Standard Temp (%TEMP%\rnllama-install-ok.txt)
+          # 3) LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
+          # 4) Packaged LocalFolder (%LOCALAPPDATA%\Packages\...\LocalState)
+          $candidatePaths = @(
+            "${{ github.workspace }}\rnllama-install-ok.txt",
+            "$env:TEMP\rnllama-install-ok.txt",
+            "$env:LOCALAPPDATA\rnllama-install-ok.txt"
+          )
 
           # The app takes time after launch to load the JS bundle from Metro and
           # run installJsi(), so poll for the marker up to 3 minutes.
@@ -196,7 +191,7 @@ jobs:
             Write-Host "`n===== running processes ====="
             Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match 'RNLlama|node|react' } | Select-Object ProcessName, Id, CPU, WorkingSet64 | Format-Table
             Write-Host "`n===== app packages (any RNLlama*) ====="
-            Get-AppxPackage -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*RNLlama*' } | Select-Object Name, InstallLocation, PackageFamilyName | Format-List
+            powershell.exe -Command "Get-AppxPackage | Where-Object { `$_.Name -like '*RNLlama*' } | Select-Object Name, InstallLocation, PackageFamilyName | Format-List" -ErrorAction SilentlyContinue
             Write-Host "`n===== sample LocalAppData\\Packages dirs ====="
             Get-ChildItem "$env:LOCALAPPDATA\Packages" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*RNLlama*' } | Select-Object FullName
             Write-Error "JSI install marker not found — llama.rn did not install its JSI bindings at runtime on Windows (checked for 3 min)."
