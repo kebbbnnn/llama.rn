@@ -143,7 +143,7 @@ jobs:
           dwarfdump --uuid macos/rnllama-macos.framework/rnllama
 
   build-windows-core:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       # NOTE: does not use ./.github/actions/setup — that runs `npm run
       # bootstrap` (pod-install) which is macOS-only and would fail on Windows.
@@ -156,6 +156,9 @@ jobs:
       # IDE install on the runner; Ninja also needs cl.exe visible).
       - name: Set up MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          sdk: '10.0.22621.0'
 
       - name: Install Ninja
         run: choco install ninja -y --no-progress
