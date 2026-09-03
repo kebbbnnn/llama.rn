@@ -92,3 +92,31 @@ jobs:
           npx react-native run-windows --release --no-launch --arch x64 --logging --no-deploy --no-packager
         working-directory: ${{ github.workspace }}/test-windows-app
         timeout-minutes: 60
+
+      # Runtime smoke test: deploy + launch the app for real and assert that
+      # installJsi() / installJSIBindings actually run on the live Windows
+      # runtime. Windows NativeModule writes a marker into the app's LocalFolder
+      # (AppContainer sandbox) when install succeeds; we poll for it. The JS
+      # bundle must be present, so we build with --bundle in Release.
+      - name: Runtime smoke test (deploy + launch + verify JSI install)
+        env:
+          RNLLAMA_SMOKE_MARKER: "1"
+        run: |
+          # Clear any stale marker from prior runs.
+          Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Remove-Item -Force
+          # Deploy + launch the app (no packager needed: bundle baked into the app).
+          npx react-native run-windows --release --arch x64 --logging --no-packager --bundle
+        working-directory: ${{ github.workspace }}/test-windows-app
+        timeout-minutes: 30
+
+      - name: Verify JSI install marker
+        shell: pwsh
+        run: |
+          $marker = Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter rnllama-install-ok.txt -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $marker) {
+            Write-Error "JSI install marker not found — llama.rn did not install its JSII bindings at runtime on Windows."
+            exit 1
+          }
+          Write-Host "JSI install marker found: $($marker.FullName)"
+          Get-Content $marker.FullName
+          Write-Host "SUCCESS: llama.rn JSI bindings installed and ran on Windows."
