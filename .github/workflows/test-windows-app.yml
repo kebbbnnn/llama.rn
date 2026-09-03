@@ -133,10 +133,24 @@ jobs:
           }
           if (-not $ready) { Write-Error "Metro did not become ready (see metro.err)"; Get-Content "${{ github.workspace }}\metro.err" -ErrorAction SilentlyContinue; exit 1 }
 
-          # Deploy + launch the app (Debug x64). This triggers a Debug build
-          # (the prior step built Release); Debug uses the .sln's Debug|x64,
-          # avoiding the invalid ReleaseBundle|x64 from --bundle.
-          npx react-native run-windows --arch x64 --logging --no-packager
+          # Deploy the app WITHOUT launching (builds Debug + installs the AppX).
+          npx react-native run-windows --arch x64 --logging --no-packager --no-launch
+
+          # Packaged UWP apps are blocked from localhost by default (loopback
+          # isolation), so exempt this app's package or it cannot reach Metro
+          # at localhost:8081 to load the JS bundle (and installJsi never runs).
+          $pkg = Get-AppxPackage | Where-Object { $_.Name -like 'RNLlamaWindowsTestApp*' } | Select-Object -First 1
+          if (-not $pkg) { Write-Error "Installed app package not found"; Get-AppxPackage | Select-Object -First 10 | Out-String | Write-Host; exit 1 }
+          Write-Host "Exempting loopback for package: $($pkg.PackageFamilyName)"
+          & CheckNetIsolation.exe LoopbackExempt -a -n="$($pkg.PackageFamilyName)"
+          if ($LASTEXITCODE -ne 0) { Write-Error "CheckNetIsolation LoopbackExempt failed ($LASTEXITCODE)"; exit 1 }
+
+          # Launch the app via its package (needs the freshly-created loopback exemption).
+          $manifest = Get-AppxPackageManifest $pkg
+          $appId = $manifest.Package.Applications.Application.Id
+          Write-Host "Launching app $($pkg.PackageFamilyName)!$appId"
+          explorer.exe "shell:AppsFolder\$($pkg.PackageFamilyName)!$appId" 2>&1 | Out-Host
+          Write-Host "App launch issued."
         working-directory: ${{ github.workspace }}/test-windows-app
         timeout-minutes: 30
 
