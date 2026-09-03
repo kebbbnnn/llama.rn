@@ -13,22 +13,63 @@
 // ExecuteJsi / MakeAbiCallInvoker come from Cxx JSI helpers.
 #include <ReactContext.h>
 
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+
 namespace winrt::RNLlama {
 
-// Diagnostic marker (test hook): on successful installJSIBindings, write a tiny
-// file into the app's LocalFolder so CI can assert the bindings actually ran on
-// the live Windows runtime. Written unconditionally (UWP apps are launched via
-// shell activation and do NOT inherit the launching process's environment, so an
-// env-var gate would silently disable it). A ~3-byte file in the sandbox is
-// inert for normal consumers.
+// Diagnostic marker (test hook): on successful installJSIBindings, write a marker
+// so CI can assert the bindings actually ran on the live Windows runtime.
+// Supports both unpackaged Win32 applications (via env var, temp dir, or LocalAppData)
+// and packaged UWP/MSIX applications (via ApplicationData::Current().LocalFolder()).
+static void writeMarkerToFile(std::filesystem::path const &p) noexcept {
+  try {
+    std::error_code ec;
+    if (p.has_parent_path()) {
+      std::filesystem::create_directories(p.parent_path(), ec);
+    }
+    std::ofstream out(p, std::ios::out | std::ios::trunc);
+    if (out.is_open()) {
+      out << "ok\n";
+      out.flush();
+    }
+  } catch (...) {
+  }
+}
+
 static void writeInstallMarker() noexcept {
+  // 1. Explicit marker path from environment variable (Win32 desktop app)
+  if (const char *envPath = std::getenv("RNLLAMA_INSTALL_MARKER")) {
+    if (envPath[0] != '\0') {
+      writeMarkerToFile(envPath);
+    }
+  }
+
+  // 2. Standard temp directory (%TEMP% / std::filesystem::temp_directory_path())
+  try {
+    std::error_code ec;
+    auto tempDir = std::filesystem::temp_directory_path(ec);
+    if (!ec) {
+      writeMarkerToFile(tempDir / "rnllama-install-ok.txt");
+    }
+  } catch (...) {
+  }
+
+  // 3. LocalAppData (%LOCALAPPDATA%\rnllama-install-ok.txt)
+  if (const char *localAppData = std::getenv("LOCALAPPDATA")) {
+    if (localAppData[0] != '\0') {
+      writeMarkerToFile(std::filesystem::path(localAppData) / "rnllama-install-ok.txt");
+    }
+  }
+
+  // 4. UWP / MSIX LocalFolder (if running with package identity in AppContainer)
   try {
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    auto file = localFolder.CreateFileAsync(
-        L"rnllama-install-ok.txt",
-        winrt::Windows::Storage::CreationCollisionOption::ReplaceExisting).get();
-    winrt::Windows::Storage::FileIO::WriteTextAsync(file, L"ok").get();
+    auto folderPath = std::wstring(localFolder.Path());
+    writeMarkerToFile(std::filesystem::path(folderPath) / "rnllama-install-ok.txt");
   } catch (...) {
+    // Expected when running as an unpackaged Win32 process (no package identity)
   }
 }
 
