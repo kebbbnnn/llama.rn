@@ -23,6 +23,15 @@
     <AutolinkedRNLibrariesDirectory>$(MSBuildThisFileDirectory)</AutolinkedRNLibrariesDirectory>
   </PropertyGroup>
 
+  <!-- Pull RN + RNW headers from these packages (restored against the app's
+       RNW feed, see test-windows-app/NuGet.Config). Their props inject the
+       ReactCommon / RNW Cxx / generated winrt include paths the sources need. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.220415.5" />
+    <PackageReference Include="Microsoft.ReactNative" Version="0.82.0" />
+    <PackageReference Include="Microsoft.ReactNative.Cxx" Version="0.82.0" />
+  </ItemGroup>
+
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM64">
       <Configuration>Debug</Configuration>
@@ -132,6 +141,9 @@
         $(MSBuildThisFileDirectory)..\cpp\tools\mtmd;
         $(MSBuildThisFileDirectory)..\cpp\codec\include;
         $(MSBuildThisFileDirectory)..\cpp\codec\common;
+        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon;
+        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon\jsi;
+        $(MSBuildThisFileDirectory)..\..\react-native\ReactCommon\callinvoker;
         %(AdditionalIncludeDirectories)
       </AdditionalIncludeDirectories>
       <AdditionalOptions>%(AdditionalOptions) /Zc:__cplusplus /std:c++17</AdditionalOptions>
