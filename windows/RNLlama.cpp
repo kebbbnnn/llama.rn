@@ -20,7 +20,7 @@ void TurboModule::Install(ReactPromise<bool> result) noexcept {
     // rooted at this ReactContext (the JS thread dispatcher).
     ExecuteJsi(m_context, [this, result](facebook::jsi::Runtime &runtime) {
       try {
-        auto callInvoker = MakeAbiCallInvoker(m_context);
+        auto callInvoker = m_context.CallInvoker();
         rnllama_jsi::installJSIBindings(runtime, callInvoker);
         result.Resolve(true);
       } catch (...) {
