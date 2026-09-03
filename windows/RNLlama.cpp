@@ -5,12 +5,10 @@
 #include <jsi/jsi.h>
 #include <ReactCommon/CallInvoker.h>
 
-// Core JSI bindings (shared with iOS/Android). Compiled from source so it
-// matches the consuming app's RN version.
+// Core JSI bindings (shared with iOS/Android).
 #include "jsi/RNLlamaJSI.h"
 
-// ExecuteJsi / TryGetOrCreateContextRuntime / MakeAbiCallInvoker come from the
-// Cxx JSI helpers.
+// ExecuteJsi / MakeAbiCallInvoker come from Cxx JSI helpers.
 #include <ReactContext.h>
 
 namespace winrt::RNLlama {
@@ -44,13 +42,3 @@ void TurboModule::Install(ReactPromise<bool> result) noexcept {
 }
 
 } // namespace winrt::RNLlama
-
-namespace winrt::RNLlama::implementation {
-
-void ReactPackageProvider::CreatePackage(
-    winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
-  // Register the attributed "RNLlama" TurboModule from RNLlama.h.
-  AddAttributedModules(packageBuilder, /* includeExports */ true);
-}
-
-} // namespace winrt::RNLlama::implementation

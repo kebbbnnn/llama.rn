@@ -20,10 +20,7 @@ module.exports = {
             projectFile: 'RNLlama.vcxproj',
             directDependency: true,
             // RNW fuses these into the app's generated package-provider list.
-            // Supplying them (rather than leaving undefined) avoids RNW's
-            // autolinker crashing with "forEach on undefined" when it iterates
-            // them to register the module.
-            cppHeaders: ['RNLlama.h'],
+            cppHeaders: ['winrt/RNLlama.h'],
             cppPackageProviders: ['RNLlama::ReactPackageProvider'],
             csNamespaces: [],
             csPackageProviders: [],
