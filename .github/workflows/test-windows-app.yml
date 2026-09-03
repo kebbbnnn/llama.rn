@@ -107,8 +107,10 @@ jobs:
 
           # Start Metro (packager) in the background; the app needs it to load JS.
           $metCwd = "${{ github.workspace }}\test-windows-app"
-          $npx = "$metCwd\node_modules\.bin\npx.cmd"
-          Start-Process -FilePath $npx -ArgumentList "react-native start" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\metro.log" -RedirectStandardError "${{ github.workspace }}\metro.err" -WindowStyle Hidden
+          # Use cmd /c npx (resolves npx from PATHS set by setup-node) rather
+          # than node_modules\.bin\npx.cmd, which may not exist depending on how
+          # npm linked the packages.
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c npx react-native start" -WorkingDirectory $metCwd -RedirectStandardOutput "${{ github.workspace }}\metro.log" -RedirectStandardError "${{ github.workspace }}\metro.err" -WindowStyle Hidden
 
           # Wait for Metro to be ready (poll the packager status endpoint).
           $ready = $false
