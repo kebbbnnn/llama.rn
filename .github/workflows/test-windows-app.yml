@@ -44,6 +44,22 @@ jobs:
         run: npm install --no-audit --no-fund
         working-directory: ${{ github.workspace }}/test-windows-app
 
+      # npm may symlink `file:..` (node_modules/llama.rn -> repo root) or copy it.
+      # The autolinked RNLlama.vcxproj links rnllama.lib relative to the copy it
+      # is built from, so guarantee the prebuilt core is reachable either way.
+      - name: Ensure prebuilt core reachable from node_modules/llama.rn
+        shell: pwsh
+        run: |
+          $src = "windows\rnllama-x64"
+          $dst = "test-windows-app\node_modules\llama.rn\windows\rnllama-x64"
+          if (Test-Path (Join-Path $dst "lib\rnllama.lib")) {
+            Write-Host "core already present at $dst (symlinked install)"
+          } else {
+            Write-Host "copying prebuilt core to $dst (copied install)"
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+            Copy-Item -Recurse -Force (Join-Path $src "*") $dst
+          }
+
       # Generate the RNW windows/ project for the app + autolink llama.rn.
       # react-native-windows is pinned in test-windows-app/package.json so the
       # init command targets the same version as the authored module (0.82).
@@ -54,16 +70,10 @@ jobs:
           npx react-native init-windows --overwrite
         working-directory: ${{ github.workspace }}/test-windows-app
 
-      # Surface RNW's autolinking config resolution explicitly so a config
-      # error isn't buried inside run-windows. llama.rn must appear with its
-      # windows platform (from the repo-root react-native.config.js).
-      - name: Debug llama.rn autolink config
-        run: |
-          npx react-native config 2>&1 | grep -A8 '"llama.rn"' || echo "(llama.rn not resolved in config)"
-
-      # Autolink llama.rn into the generated windows/ project explicitly. This
-      # is the step that crashed before ("forEach on undefined"); separating it
-      # isolates the failure.
+      # Autolink llama.rn into the generated windows/ project explicitly. The
+      # app depends on llama.rn via a `file:..` spec so RNW reads llama.rn's own
+      # repo-root react-native.config.js (dependency.platforms.windows) and
+      # links windows/RNLlama.vcxproj.
       - name: Autolink Windows
         run: |
           npx react-native autolink-windows
