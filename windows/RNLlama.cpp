@@ -5,7 +5,6 @@
 #include <jsi/jsi.h>
 #include <ReactCommon/CallInvoker.h>
 #include <cstdlib>
-#include <fstream>
 
 #include <winrt/Windows.Storage.h>
 
@@ -29,9 +28,11 @@ static void writeSmokeMarkerIfRequested() noexcept {
   }
   try {
     auto localFolder = winrt::Windows::Storage::ApplicationData::Current().LocalFolder();
-    auto markerPath = winrt::to_string(localFolder.Path()) + L"\\rnllama-install-ok.txt";
-    std::ofstream marker(markerPath, std::ios::trunc);
-    marker << "ok\n";
+    // CreateFileAsync creates or opens the file; WriteTextAsync writes it.
+    auto file = localFolder.CreateFileAsync(
+        L"rnllama-install-ok.txt",
+        winrt::Windows::Storage::CreationCollisionOption::ReplaceExisting).get();
+    winrt::Windows::Storage::FileIO::WriteTextAsync(file, L"ok").get();
   } catch (...) {
   }
 }
