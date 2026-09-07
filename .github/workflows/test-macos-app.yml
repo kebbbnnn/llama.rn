@@ -12,9 +12,7 @@ concurrency:
 
 jobs:
   build-and-smoke:
-    runs-on: macos-13
-    env:
-      RNLLAMA_BUILD_FROM_SOURCE: "1"
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,29 +24,22 @@ jobs:
         with:
           node-version: 20.x
 
-      # The macOS native module always builds from source (react-native-macos is
-      # old-arch and the examples do the same) — no prebuilt framework needed in
-      # the checkout. CMake (for building the C++ core) is preinstalled on the
-      # macOS runners.
+      # Install the macOS native module via the prebuilt vendored framework
+      # (macos/rnllama.framework) — the real consumer path. CMake is
+      # preinstalled on the macOS runners (only needed by build:macos-framework).
 
       - name: Install test app dependencies
         run: npm install --no-audit --no-fund
         working-directory: test-macos-app
 
-      # The llama.rn macOS framework is referenced by the podspec. Since the app
-      # builds llama.rn from source, ensure the local core is present by running
-      # the build first (produces macos/rnllama.framework + dSYM).
+      # Build the prebuilt llama.rn macOS framework that the podspec vendors.
       - name: Build llama.rn macOS framework
         run: npm run build:macos-framework
         working-directory: ${{ github.workspace }}
 
       - name: Install Pods
-        run: |
-          export RNLLAMA_BUILD_FROM_SOURCE=1
-          pod install
+        run: pod install
         working-directory: ${{ github.workspace }}/test-macos-app/macos
-        env:
-          RNLLAMA_BUILD_FROM_SOURCE: "1"
 
       - name: Build and package macOS app (Release)
         run: |
