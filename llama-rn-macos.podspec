@@ -36,7 +36,7 @@ Pod::Spec.new do |s|
   else
     # JSI bindings always compiled from source (must match RN version)
     s.source_files = "macos/*.{h,m,mm}", "cpp/jsi/**/*.{h,cpp}"
-    s.vendored_frameworks = "macos/rnllama-macos.framework"
+    s.vendored_frameworks = "macos/rnllama.framework"
     base_compiler_flags += " -DRNLLAMA_USE_FRAMEWORK_HEADERS"
   end
 

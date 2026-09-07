@@ -77,7 +77,7 @@ jobs:
         run: npm run build:macos-framework
 
       - name: Package macOS framework
-        run: COPYFILE_DISABLE=1 tar -czf llama-rn-macos-framework.tar.gz macos/rnllama-macos.framework
+        run: COPYFILE_DISABLE=1 tar -czf llama-rn-macos-framework.tar.gz macos/rnllama.framework
 
       - name: Upload macOS build artifacts
         uses: actions/upload-artifact@v4

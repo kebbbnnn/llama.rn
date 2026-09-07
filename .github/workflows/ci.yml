@@ -138,9 +138,9 @@ jobs:
       # verifies the desktop framework still links with a matching dSYM.
       - name: Verify macOS framework
         run: |
-          test -f macos/rnllama-macos.framework/rnllama
-          test -d macos/rnllama-macos.framework.dSYM
-          dwarfdump --uuid macos/rnllama-macos.framework/rnllama
+          test -f macos/rnllama.framework/rnllama
+          test -d macos/rnllama.framework.dSYM
+          dwarfdump --uuid macos/rnllama.framework/rnllama
 
   build-windows-core:
     runs-on: windows-2022

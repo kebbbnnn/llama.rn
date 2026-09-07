@@ -19,8 +19,8 @@
     {
       "name": "macos-framework",
       "assetName": "llama-rn-macos-framework.tar.gz",
-      "relativePath": "macos/rnllama-macos.framework",
-      "markerPath": "macos/rnllama-macos.framework/.llama-rn.sha256",
+      "relativePath": "macos/rnllama.framework",
+      "markerPath": "macos/rnllama.framework/.llama-rn.sha256",
       "legacyMarkerPath": "macos/.llama-rn-macos-framework.sha256",
       "sha256": null
     },

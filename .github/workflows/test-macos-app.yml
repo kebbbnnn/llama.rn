@@ -1,0 +1,104 @@
+name: macOS test app (JSI runtime smoke)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    runs-on: macos-13
+    env:
+      RNLLAMA_BUILD_FROM_SOURCE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+
+      # The macOS native module always builds from source (react-native-macos is
+      # old-arch and the examples do the same) — no prebuilt framework needed in
+      # the checkout. CMake (for building the C++ core) is preinstalled on the
+      # macOS runners.
+
+      - name: Install test app dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: test-macos-app
+
+      # The llama.rn macOS framework is referenced by the podspec. Since the app
+      # builds llama.rn from source, ensure the local core is present by running
+      # the build first (produces macos/rnllama.framework + dSYM).
+      - name: Build llama.rn macOS framework
+        run: npm run build:macos-framework
+        working-directory: ${{ github.workspace }}
+
+      - name: Install Pods
+        run: |
+          export RNLLAMA_BUILD_FROM_SOURCE=1
+          pod install
+        working-directory: ${{ github.workspace }}/test-macos-app/macos
+        env:
+          RNLLAMA_BUILD_FROM_SOURCE: "1"
+
+      - name: Build and package macOS app (Release)
+        run: |
+          export NODE_BINARY=$(command -v node)
+          xcodebuild -workspace RNLlamaMacOSTestApp.xcworkspace \
+            -scheme RNLlamaMacOSTestApp-macOS \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+        working-directory: ${{ github.workspace }}/test-macos-app/macos
+
+      # Runtime smoke test: start logger + Metro, launch the app, assert JSI install.
+      - name: Runtime smoke test (launch app, verify installJsi)
+        run: |
+          # Start CI logger (port 8083) to receive the app's install report.
+          node ci-logger.js > /tmp/ci-logger.log 2>&1 &
+          ciLoggerPid=$!
+          # Start Metro in the background.
+          npx react-native start > /tmp/metro.log 2>&1 &
+          metroPid=$!
+          echo "logger=$ciLoggerPid metro=$metroPid"
+
+          # Wait for Metro to be ready.
+          for i in $(seq 1 60); do
+            if curl -s -m 2 http://localhost:8081/status >/dev/null 2>&1; then echo "metro ready"; break; fi
+            sleep 2
+          done
+
+          # Launch the built app (macOS runner has a window server; the app reports
+          # via HTTP regardless of UI).
+          APP="$(pwd)/macos/build/Build/Products/Release/RNLlamaMacOSTestApp.app"
+          open "$APP"
+          echo "app launched: $APP"
+
+          # Poll the logger for the /success signal (installJsi SUCCEEDED).
+          for i in $(seq 1 90); do
+            if grep -q "/success" /tmp/ci-logger.log 2>/dev/null; then
+              echo "=== install confirmed ==="
+              cat /tmp/ci-logger.log
+              kill $metroPid $ciLoggerPid 2>/dev/null || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          # On failure, dump diagnostics.
+          echo "=== ci-logger.log ==="; cat /tmp/ci-logger.log 2>/dev/null
+          echo "=== metro.log ==="; tail -50 /tmp/metro.log 2>/dev/null
+          kill $metroPid $ciLoggerPid 2>/dev/null || true
+          echo "MARKER NOT FOUND: llama.rn did not install JSI bindings on macOS"
+          exit 1
+        working-directory: ${{ github.workspace }}/test-macos-app
+        timeout-minutes: 25

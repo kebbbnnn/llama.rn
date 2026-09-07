@@ -83,7 +83,19 @@ jniLibs/
 build-ios/
 build-tvos/
 .build-macos/
-macos/rnllama-macos.framework/
+macos/rnllama.framework/
+macos/rnllama.framework.dSYM/
+# test-macos-app: skip generated/build + deps, keep the source committed for CI.
+test-macos-app/node_modules/
+test-macos-app/macos/build/
+test-macos-app/macos/Pods/
+test-macos-app/macos/Pods.xcodeproj/
+test-macos-app/macos/.gitignore
+test-macos-app/macos/.xcode.env
+test-macos-app/macos/.xcode.env.local
+test-macos-app/package-lock.json
+test-macos-app/ci-app.log
+test-macos-app/rnllama-install-ok.txt
 windows/rnllama-*/
 bin/
 llama-rn-android-jni-libs.tar.gz

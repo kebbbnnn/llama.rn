@@ -1,0 +1,25 @@
+{
+  "name": "RNLlamaMacOSTestApp",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "macos": "react-native run-macos",
+    "pods": "cd macos && pod install"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-native": "0.75.5",
+    "react-native-macos": "0.75.34",
+    "llama.rn": "file:.."
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@react-native/babel-preset": "0.75.5",
+    "@react-native/metro-config": "0.75.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

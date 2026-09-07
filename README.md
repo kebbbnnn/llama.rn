@@ -113,7 +113,7 @@ compiled from source against your RN version, exactly like the mobile path.
 
 | Target | Library | Podspec | Pre-built native core |
 | ------ | ------- | ------- | --------------------- |
-| macOS  | `react-native-macOS` (deprecated upstream) | `llama-rn-macos.podspec` | `macos/rnllama-macos.framework` |
+| macOS  | `react-native-macOS` (deprecated upstream) | `llama-rn-macos.podspec` | `macos/rnllama.framework` |
 | Windows | `react-native-windows` (RN ≥ 0.73) | — (autolinked) | `windows/rnllama-<arch>/lib/rnllama.lib` |
 
 The pre-built cores are downloaded on `postinstall` (same mechanism as
@@ -121,13 +121,13 @@ iOS/Android) and verified with SHA-256:
 
 ```txt
 ios/rnllama.xcframework
-macos/rnllama-macos.framework
+macos/rnllama.framework
 windows/rnllama-x64/  (and/or rnllama-arm64)
 android/src/main/jniLibs
 ```
 
 **macOS.** Add `pod 'llama-rn-macos', :path => '../node_modules/llama.rn'` to
-your macOS Podfile. By default the pre-built `macos/rnllama-macos.framework`
+your macOS Podfile. By default the pre-built `macos/rnllama.framework`
 is used; set `RNLLAMA_BUILD_FROM_SOURCE=1` to compile the C++ core from source.
 
 **Windows.** The `windows/RNLlama.vcxproj` auto-links through
@@ -137,7 +137,7 @@ and links the vendored `rnllama.lib`.
 **Building the pre-built desktop cores** (CI / release):
 
 ```sh
-npm run build:macos-framework     # -> macos/rnllama-macos.framework (+ dSYM)
+npm run build:macos-framework     # -> macos/rnllama.framework (+ dSYM)
 npm run build:windows-libs        # -> windows/rnllama-x64/, windows/rnllama-arm64/
 ```
 

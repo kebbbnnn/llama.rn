@@ -8,7 +8,7 @@ if ! command -v cmake &> /dev/null; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_DIR="$ROOT_DIR/macos/rnllama-macos.framework"
+OUTPUT_DIR="$ROOT_DIR/macos/rnllama.framework"
 BUILD_ROOT="$ROOT_DIR/.build-macos"
 STAGING_DIR="$BUILD_ROOT/staging"
 
@@ -104,4 +104,4 @@ assert_matching_dsym "$OUTPUT_DIR" "$OUTPUT_DIR.dSYM"
 
 t1=$(date +%s)
 echo "Total time: $((t1 - t0)) seconds"
-echo "Prebuilt macOS framework is in macos/rnllama-macos.framework"
+echo "Prebuilt macOS framework is in macos/rnllama.framework"
